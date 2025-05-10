@@ -4,7 +4,7 @@ import Link from "next/link";
 
 const Navbar = () => {
   return (
-    <nav className="bg-neutral-900 fixed w-full text-white">
+    <nav className="fixed w-full bg-neutral-900 text-white">
       <div className="container mx-auto flex h-16 max-w-screen-xl items-center justify-between p-4">
         <Link href="/" className="text-xl">
           Web Utils

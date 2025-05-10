@@ -28,7 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={notoSansJp.className}>
         <AppProvider>
           <Navbar />
-          <main className="container mx-auto max-w-screen-xl px-6 pt-20 pb-8">{children}</main>
+          <main className="container mx-auto max-w-screen-xl pt-20 pb-8">{children}</main>
         </AppProvider>
       </body>
     </html>
