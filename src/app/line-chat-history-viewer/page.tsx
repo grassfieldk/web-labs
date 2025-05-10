@@ -84,7 +84,7 @@ export default function ChatPage() {
           const isMe = msg.sender !== partnerName;
 
           return (
-            <div key={i} className={`flex flex-row${isMe && "-reverse"} items-end`}>
+            <div key={i} className={`flex ${isMe ? "flex-row-reverse" : "flex-row"} items-end`}>
               <div
                 className={`max-w-3/4 rounded-2xl px-4 py-2 break-words ${
                   isMe ? "rounded-br-none bg-[#a1e190]" : "rounded-bl-none bg-gray-200"
