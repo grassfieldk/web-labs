@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+::-webkit-scrollbar {
+  display: none;
+}
+
+* {
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+body {
+  @apply bg-white text-neutral-800;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  @apply my-4 font-bold;
+}
+
+h1 {
+  @apply text-3xl;
+}
+
+h2 {
+  @apply text-2xl;
+}
+
+h3 {
+  @apply text-xl;
+}
+
+h4 {
+  @apply text-lg;
+}
+
+p {
+  @apply my-2;
+}
+
+a {
+  @apply hover:underline;
+}
+
+code {
+  @apply rounded bg-neutral-800 px-1 text-neutral-200;
+}
+
+pre {
+  @apply overflow-x-auto rounded bg-gray-100 p-4;
+}
+
+ul,
+ol {
+  @apply my-2 list-inside list-disc;
+}
+
+li {
+  @apply my-1;
+}
