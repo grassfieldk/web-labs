@@ -13,6 +13,10 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [partnerName, setPartnerName] = useState<string>("");
 
+  React.useEffect(() => {
+    console.log(`Partner name changed to: "${partnerName}"`);
+  }, [partnerName]);
+
   /**
    * Parse exported LINE chat data into Message objects and extract partner name.
    * @param text - Raw text content from the exported .txt file.
