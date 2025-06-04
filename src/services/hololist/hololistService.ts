@@ -2,7 +2,7 @@ import axios from "axios";
 import * as cheerio from "cheerio";
 
 class HololistService {
-  private BASE_URL = "https://hololist.net"
+  private BASE_URL = "https://hololist.net";
 
   /**
    * Searches for VTuber links based on the provided parameters.
