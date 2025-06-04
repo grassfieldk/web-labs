@@ -66,9 +66,9 @@ li {
 
 input,
 textarea {
-  @apply rounded-md border border-neutral-300 bg-white px-4 py-2;
+  @apply my-1 rounded-md border border-neutral-300 bg-white px-4 py-2;
 }
 
 button {
-  @apply rounded-full bg-gray-800 px-4 py-2 text-white;
+  @apply my-1 rounded-full bg-gray-800 px-4 py-2 text-white;
 }
