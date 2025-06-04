@@ -12,9 +12,7 @@ export async function GET(req: NextRequest) {
 
     const data = await HololistService.search(searchParams);
 
-    return new NextResponse(data, {
-      headers: { "content-type": "text/html; charset=utf-8" },
-    });
+    return NextResponse.json(data);
   } catch (error) {
     return new NextResponse(error instanceof Error ? error.message : "Internal Server Error", {
       status: 500,

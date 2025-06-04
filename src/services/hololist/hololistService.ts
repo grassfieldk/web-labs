@@ -48,7 +48,8 @@ class HololistService {
     }
   }
 }
-export default new HololistService();
+const hololistService = new HololistService();
+export default hololistService;
 
 // TODO: Define the SearchParams interface to match the expected query parameters
 export interface SearchParams {
