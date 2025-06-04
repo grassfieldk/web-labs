@@ -10,8 +10,13 @@ type Message = {
 };
 
 export default function ChatPage() {
+  // State to hold the parsed messages and partner name
   const [messages, setMessages] = useState<Message[]>([]);
   const [partnerName, setPartnerName] = useState<string>("");
+
+  // State to control the visibility
+  const [showStamps, setShowStamps] = useState(true);
+  const [showMedia, setShowMedia] = useState(true);
 
   React.useEffect(() => {
     console.log(`Partner name changed to: "${partnerName}"`);
@@ -63,18 +68,18 @@ export default function ChatPage() {
   };
 
   return (
-    <div>
-      <div className="px-4">
+    <div className="text-sm">
+      <div className="mx-auto max-w-screen-xl bg-white px-4">
         <h2>{partnerName} とのトーク履歴</h2>
-        <input type="file" accept=".txt" onChange={onFileChange} className="mb-6" />
+        <input type="file" accept=".txt" onChange={onFileChange} className="mb-4 w-full" />
       </div>
-      <div className="mt-1 space-y-2 bg-[#97a9d0] p-4 text-sm">
+      <div className="space-y-2 bg-[#97a9d0] p-4">
         {messages.map((msg, i) => {
           if (!msg.time) {
             return (
               <div
                 key={i}
-                className="my-2 rounded-full bg-gray-500/50 p-1 text-center text-xs text-neutral-200"
+                className="mt-4 rounded-full bg-gray-500/50 p-1 text-center text-xs text-neutral-200"
               >
                 {msg.date}
               </div>
@@ -82,6 +87,11 @@ export default function ChatPage() {
           }
 
           const isMe = msg.sender !== partnerName;
+          const isStamp = msg.content === "[スタンプ]";
+          const isMedia = msg.content === "[写真]" || msg.content === "[動画]";
+
+          if (isStamp && !showStamps) return null;
+          if (isMedia && !showMedia) return null;
 
           return (
             <div key={i} className={`flex ${isMe ? "flex-row-reverse" : "flex-row"} items-end`}>
@@ -92,10 +102,18 @@ export default function ChatPage() {
               >
                 <div>{msg.content}</div>
               </div>
-              <div className="mr-1 text-xs text-gray-500">{msg.time}</div>
+              <div className="mx-1 mb-1 text-xs text-gray-500">{msg.time}</div>
             </div>
           );
         })}
+      </div>
+      <div className="fixed right-0 bottom-0 left-0 flex justify-center space-x-4 bg-white p-2">
+        <button onClick={() => setShowStamps(!showStamps)}>
+          スタンプ表示 {showStamps ? "あり" : "なし"}
+        </button>
+        <button onClick={() => setShowMedia(!showMedia)}>
+          メディア表示 {showMedia ? "あり" : "なし"}
+        </button>
       </div>
     </div>
   );
