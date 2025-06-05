@@ -5,7 +5,7 @@ import { useState } from "react";
 export default function VideoDownloaderPage() {
   const [videoId, setVideoId] = useState("");
   const [metadata, setMetadata] = useState<any>(null);
-  const [format, setFormat] = useState("best");
+  const [format, setFormat] = useState("");
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadingMeta, setLoadingMeta] = useState(false);
@@ -59,37 +59,73 @@ export default function VideoDownloaderPage() {
           onChange={(e) => setVideoId(e.target.value)}
         />
         <button onClick={fetchMetadata} disabled={loadingMeta || !videoId}>
-          {loadingMeta ? "Loading..." : "Fetch Metadata"}
+          {loadingMeta ? "Loading..." : "Fetch Video Info"}
         </button>
       </div>
       {metadata && (
         <div className="mt-4">
-          <h2>Metadata</h2>
-          <pre className="overflow-auto rounded bg-gray-100 p-2 text-xs">
-            {JSON.stringify(metadata, null, 2)}
-          </pre>
+          <label>Format</label>
+          <input
+            type="text"
+            className="w-full"
+            value={format}
+            onChange={(e) => setFormat(e.target.value)}
+          />
+          <button onClick={initiateDownload} disabled={loadingDownload}>
+            {loadingDownload ? "Getting Link..." : "Get Download Link"}
+          </button>
+          {downloadUrl && (
+            <a href={downloadUrl} download>
+              {downloadUrl}
+            </a>
+          )}
         </div>
       )}
       {metadata && (
         <div className="mt-4">
-          <label className="mb-1 block">Format</label>
-          <input
-            type="text"
-            value={format}
-            onChange={(e) => setFormat(e.target.value)}
-            placeholder="best or formatId+formatId"
-          />
-          <button onClick={initiateDownload} disabled={loadingDownload}>
-            {loadingDownload ? "Starting Download..." : "Download"}
-          </button>
-        </div>
-      )}
-      {downloadUrl && (
-        <div className="mt-4">
-          <h2>Download Link</h2>
-          <a href={downloadUrl} download>
-            {downloadUrl}
-          </a>
+          <h2>Available Formats</h2>
+          <div>
+            <table className="w-full text-sm">
+              <thead className="bg-neutral-800 text-white">
+                <tr>
+                  <th className="px-3 py-1">ID</th>
+                  <th className="px-3 py-1">Ext</th>
+                  <th className="px-3 py-1">Resolution</th>
+                  <th className="px-3 py-1">FPS</th>
+                  <th className="px-3 py-1">Size</th>
+                  <th className="hidden px-3 py-1 sm:table-cell">Bitrate</th>
+                </tr>
+              </thead>
+              <tbody>
+                {metadata.formats
+                  ?.filter((fmt: any) => fmt.ext !== "mhtml")
+                  .map((fmt: any) => (
+                    <tr key={fmt.format_id} className="border-b">
+                      <td className="px-3 py-1">{fmt.format_id}</td>
+                      <td className="px-3 py-1">{fmt.ext}</td>
+                      <td className="px-3 py-1">
+                        {fmt.vcodec === "none"
+                          ? "(AUDIO)"
+                          : fmt.width && fmt.height
+                            ? `${fmt.width}x${fmt.height}`
+                            : fmt.format}
+                      </td>
+                      <td className="px-3 py-1">{fmt.fps ?? "-"}</td>
+                      <td className="px-3 py-1">
+                        {fmt.filesize
+                          ? `${(fmt.filesize / (1024 * 1024)).toFixed(1)} MB`
+                          : fmt.filesize_approx
+                            ? `${(fmt.filesize_approx / (1024 * 1024)).toFixed(1)} MB`
+                            : "-"}
+                      </td>
+                      <td className="hidden px-3 py-1 sm:table-cell">
+                        {fmt.tbr ? `${Math.round(fmt.tbr)} kbps` : "-"}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
       {error && <div className="mt-4 text-red-600">Error: {error}</div>}
