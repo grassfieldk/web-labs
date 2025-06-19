@@ -1,13 +1,28 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { LOG_PATHS } from "@/config/logPaths";
+import { LogLevel } from "@/types/LogLevel";
+import { halfToFullWidth } from "@/utils/stringConverter";
+import { useRef, useState } from "react";
 
 export default function VideoDownloaderPage() {
   const [input, setInput] = useState("");
   const [output, setOutput] = useState("");
   const [message, setMessage] = useState<string | null>(null);
+
   const outputRef = useRef<HTMLTextAreaElement>(null);
 
+  const logMessage = async (filePath: string, level: LogLevel, message: string) => {
+    try {
+      await fetch("/api/log", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filePath, level, message }),
+      });
+    } catch (err) {
+      console.error("Failed to log message:", err);
+    }
+  };
   const convertText = () => {
     let trimmed = false;
     let result = "";
@@ -38,8 +53,12 @@ export default function VideoDownloaderPage() {
         trimmed = true;
       }
     }
+
     setOutput(result);
     setMessage(trimmed ? "うまトマ語に非対応の文字は煮込む過程で消滅しました" : null);
+
+    // Use centralized log path
+    logMessage(LOG_PATHS.LOG_UMATOMA, "INFO", `Input: ${fullWidthInput}, Output: ${result}`);
   };
 
   const copyOutput = async () => {
