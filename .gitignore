@@ -29,6 +29,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# application logs
+logs/**/*.log
+
 # env files (can opt-in for committing if needed)
 .env*
 !.env.sample
