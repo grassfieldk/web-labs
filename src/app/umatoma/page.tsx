@@ -22,6 +22,8 @@ export default function VideoDownloaderPage() {
         result += "\n";
       } else if (ch === " ") {
         result += " ";
+      } else if ("！？、。～ー".includes(ch)) {
+        result += ch;
       } else if (/^[\u3040-\u309F]$/.test(ch)) {
         // hiragana
         if (ch === "あ" || ch === "え") {
