@@ -23,31 +23,35 @@ export default function VideoDownloaderPage() {
       console.error("Failed to log message:", err);
     }
   };
+
   const convertText = () => {
     let trimmed = false;
     let result = "";
+    const fullWidthInput = halfToFullWidth(input, true);
 
-    if (!/[ぁ-んァ-ン]/.test(input)) {
-      setMessage("うまトマ語に対応しているのはひらがなまたはカタカナのみです");
+    if (!/[ぁ-んァ-ン]/.test(fullWidthInput)) {
+      setMessage("うまトマ語に対応しているのは ひらがな または カタカナ のみです");
       return;
     }
 
-    for (const ch of input) {
+    for (const ch of fullWidthInput) {
       if (ch === "\n") {
         result += "\n";
       } else if (ch === " ") {
         result += " ";
-      } else if ("！？、。～ー".includes(ch)) {
+      } else if ("！？「」『』（）【】○◯●△▲▽▼＝♡♥☆★↑↓←→、。～ーっッ".includes(ch)) {
         result += ch;
       } else if (/^[\u3040-\u309F]$/.test(ch)) {
-        // hiragana
-        if ("あかさたなはまやらわえけせてねへめれ".includes(ch)) {
+        if ("あかさたなはまやらわえけせてねへめれぁゃ".includes(ch)) {
           result += "ま";
+        } else if ("がざだばげぜでべ".includes(ch)) {
+          result += "ま";
+        } else if ("ゔぎじぢびぐずづぶごぞどぼ".includes(ch)) {
+          result += "ゔ";
         } else {
           result += "う";
         }
       } else if (/^[\u30A0-\u30FF]$/.test(ch)) {
-        // katakana
         result += "マ";
       } else {
         trimmed = true;
@@ -67,14 +71,14 @@ export default function VideoDownloaderPage() {
         await navigator.clipboard.writeText(outputRef.current.value);
       } catch (err) {
         console.error("Failed to copy text: ", err);
-        setMessage("クリップボードへのコピーに失敗しました。");
+        setMessage("こぼしてしまったためコピーできませんでした");
       }
     }
   };
 
   return (
     <div className="mx-auto max-w-xl p-6">
-      <h1>うま と マ</h1>
+      <h1>かなカナ/うまトマ語コンバーター</h1>
       <div className="flex flex-col gap-4">
         <div>
           <a
@@ -87,7 +91,7 @@ export default function VideoDownloaderPage() {
           <span className="text-sm">※ ライス小盛がおすすめです</span>
         </div>
         <div>
-          <label>入力</label>
+          <label>うまトマ語に変換したい文字列を入力してください</label>
           <textarea
             className="w-full"
             placeholder="ひらがな・カタカナを入力"
