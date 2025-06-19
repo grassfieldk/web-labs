@@ -26,7 +26,7 @@ export default function VideoDownloaderPage() {
         result += ch;
       } else if (/^[\u3040-\u309F]$/.test(ch)) {
         // hiragana
-        if (ch === "あ" || ch === "え") {
+        if ("あかさたなはまやらわえけせてねへめれ".includes(ch)) {
           result += "ま";
         } else {
           result += "う";
@@ -76,7 +76,9 @@ export default function VideoDownloaderPage() {
             onChange={(e) => setInput(e.target.value)}
           />
           <div className="text-right">
-            <button className="w-[6em]" onClick={convertText}>変換</button>
+            <button className="w-[6em]" onClick={convertText}>
+              変換
+            </button>
           </div>
         </div>
         <div>
@@ -89,7 +91,9 @@ export default function VideoDownloaderPage() {
             readOnly
           />
           <div className="text-right">
-            <button className="w-[6em]" onClick={copyOutput}>コピー</button>
+            <button className="w-[6em]" onClick={copyOutput}>
+              コピー
+            </button>
           </div>
         </div>
         {message && <div className="mt-2 text-red-600">{message}</div>}
