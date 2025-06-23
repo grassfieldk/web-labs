@@ -44,7 +44,7 @@ p {
 }
 
 a {
-  @apply hover:underline;
+  @apply cursor-pointer hover:underline;
 }
 
 code {
@@ -70,5 +70,11 @@ textarea {
 }
 
 button {
-  @apply my-1 rounded-full bg-gray-800 px-4 py-2 text-white;
+  @apply my-1 cursor-pointer rounded-full bg-gray-800 px-4 py-2 text-white;
+}
+
+input:disabled,
+textarea:disabled,
+button:disabled {
+  @apply cursor-not-allowed bg-neutral-200 text-neutral-400 opacity-60;
 }
