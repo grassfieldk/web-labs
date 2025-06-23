@@ -2,133 +2,153 @@
 
 import { useState } from "react";
 
-export default function VideoDownloaderPage() {
-  const [videoId, setVideoId] = useState("");
-  const [metadata, setMetadata] = useState<any>(null);
-  const [format, setFormat] = useState("");
-  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loadingMeta, setLoadingMeta] = useState(false);
-  const [loadingDownload, setLoadingDownload] = useState(false);
+interface Format {
+  id: string;
+  ext: string;
+  resolution: string;
+  fps: number;
+  size: number;
+  bitrate: number;
+}
 
-  const requestPath = "/api/yt-dlp";
+export default function VideoDownloader() {
+  const [url, setUrl] = useState("");
+  const [format, setFormat] = useState("");
+  const [formats, setFormats] = useState<Format[]>([]);
+  const [error, setError] = useState("");
+  const [isFetching, setIsFetching] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const fetchMetadata = async () => {
-    setError(null);
-    setLoadingMeta(true);
-    setMetadata(null);
+    setError("");
+    setIsFetching(true);
     try {
-      const res = await fetch(`${requestPath}/metadata?v=${encodeURIComponent(videoId)}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to fetch metadata");
-      setMetadata(data.info);
-    } catch (e: any) {
-      setError(e.message);
+      const response = await fetch("/api/yt-dlp/metadata", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch metadata");
+      }
+
+      const data = await response.json();
+      setFormats(data.formats);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Unknown error";
+      setError(errorMessage);
     } finally {
-      setLoadingMeta(false);
+      setIsFetching(false);
     }
   };
 
-  const initiateDownload = async () => {
-    setError(null);
-    setLoadingDownload(true);
-    setDownloadUrl(null);
+  const downloadVideo = async () => {
+    setError("");
+    setIsDownloading(true);
+
     try {
-      const res = await fetch(
-        `${requestPath}/download?v=${encodeURIComponent(videoId)}&format=${encodeURIComponent(format)}`
-      );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to initiate download");
-      setDownloadUrl(data.downloadUrl);
-    } catch (e: any) {
-      setError(e.message);
+      const response = await fetch("/api/yt-dlp/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url, format }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to download video");
+      }
+
+      const contentDisposition = response.headers.get("Content-Disposition");
+      let fileName = "video.mp4";
+
+      if (contentDisposition) {
+        const fileNameMatch = contentDisposition.match(/filename\*=(?:UTF-8'')?([^;\n]+)/);
+        if (fileNameMatch) {
+          fileName = decodeURIComponent(fileNameMatch[1]);
+        } else {
+          const fallbackMatch = contentDisposition.match(/filename="(.+?)"/);
+          if (fallbackMatch) {
+            fileName = fallbackMatch[1];
+          }
+        }
+      }
+
+      const blob = await response.blob();
+      const link = document.createElement("a");
+
+      link.href = URL.createObjectURL(blob);
+      link.download = fileName;
+      link.click();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Unknown error";
+
+      setError(errorMessage);
     } finally {
-      setLoadingDownload(false);
+      setIsDownloading(false);
     }
   };
 
   return (
-    <div className="mx-auto max-w-screen-xl px-4 pt-6">
-      <h1>YouTube Video Downloader</h1>
-      <div className="mb-4">
+    <div className="mx-auto max-w-screen-lg p-4">
+      <h1>Video Downloader</h1>
+      <div>
         <label>Video URL or ID</label>
         <input
           type="text"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
           className="w-full"
-          value={videoId}
-          onChange={(e) => setVideoId(e.target.value)}
         />
-        <button onClick={fetchMetadata} disabled={loadingMeta || !videoId}>
-          {loadingMeta ? "Loading..." : "Fetch Video Info"}
-        </button>
       </div>
-      {metadata && (
-        <div className="mt-4">
-          <label>Format</label>
-          <input
-            type="text"
-            className="w-full"
-            value={format}
-            onChange={(e) => setFormat(e.target.value)}
-          />
-          <button onClick={initiateDownload} disabled={loadingDownload}>
-            {loadingDownload ? "Getting Link..." : "Get Download Link"}
-          </button>
-          {downloadUrl && (
-            <a href={downloadUrl} download>
-              {downloadUrl}
-            </a>
-          )}
-        </div>
-      )}
-      {metadata && (
-        <div className="mt-4">
+      <button onClick={fetchMetadata} disabled={isFetching} className="w-full">
+        {isFetching ? "Fetching..." : "Fetch Metadata"}
+      </button>
+      <label>Format (optional)</label>
+      <input
+        type="text"
+        value={format}
+        onChange={(e) => setFormat(e.target.value)}
+        className="w-full"
+      />
+      <button
+        onClick={downloadVideo}
+        disabled={isDownloading || formats.length === 0}
+        className="w-full"
+      >
+        {isDownloading ? "Downloading..." : "Download Video"}
+      </button>
+      {error && <p>Error: {error}</p>}
+      {formats.length > 0 && (
+        <div>
           <h2>Available Formats</h2>
-          <div>
-            <table className="w-full text-sm">
-              <thead className="bg-neutral-800 text-white">
-                <tr>
-                  <th className="px-3 py-1">ID</th>
-                  <th className="px-3 py-1">Ext</th>
-                  <th className="px-3 py-1">Resolution</th>
-                  <th className="px-3 py-1">FPS</th>
-                  <th className="px-3 py-1">Size</th>
-                  <th className="hidden px-3 py-1 sm:table-cell">Bitrate</th>
-                </tr>
-              </thead>
-              <tbody>
-                {metadata.formats
-                  ?.filter((fmt: any) => fmt.ext !== "mhtml")
-                  .map((fmt: any) => (
-                    <tr key={fmt.format_id} className="border-b">
-                      <td className="px-3 py-1">{fmt.format_id}</td>
-                      <td className="px-3 py-1">{fmt.ext}</td>
-                      <td className="px-3 py-1">
-                        {fmt.vcodec === "none"
-                          ? "(AUDIO)"
-                          : fmt.width && fmt.height
-                            ? `${fmt.width}x${fmt.height}`
-                            : fmt.format}
-                      </td>
-                      <td className="px-3 py-1">{fmt.fps ?? "-"}</td>
-                      <td className="px-3 py-1">
-                        {fmt.filesize
-                          ? `${(fmt.filesize / (1024 * 1024)).toFixed(1)} MB`
-                          : fmt.filesize_approx
-                            ? `${(fmt.filesize_approx / (1024 * 1024)).toFixed(1)} MB`
-                            : "-"}
-                      </td>
-                      <td className="hidden px-3 py-1 sm:table-cell">
-                        {fmt.tbr ? `${Math.round(fmt.tbr)} kbps` : "-"}
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Ext</th>
+                <th>Resolution</th>
+                <th>FPS</th>
+                <th>Size (MB)</th>
+                <th>Bitrate (kbps)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {formats
+                // .filter((format) => format.size > 0)
+                .map((format) => (
+                  <tr key={format.id}>
+                    <td>{format.id}</td>
+                    <td>{format.ext}</td>
+                    <td>{format.resolution}</td>
+                    <td>{format.fps}</td>
+                    <td>{(format.size / (1024 * 1024)).toFixed(2)}</td>
+                    <td>{(format.bitrate / 1000).toFixed(2)}</td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
         </div>
       )}
-      {error && <div className="mt-4 text-red-600">Error: {error}</div>}
     </div>
   );
 }
