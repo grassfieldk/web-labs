@@ -2,9 +2,11 @@ import { executeYtDlp, getFileName, getYtDlpMetadata } from "@/services/yt-dlp/y
 import { NextResponse } from "next/server";
 import { PassThrough } from "stream";
 
-export async function POST(request: Request) {
+export async function GET(request: Request) {
   try {
-    const { url, format } = await request.json();
+    const { searchParams } = new URL(request.url);
+    const url = searchParams.get('url');
+    const format = searchParams.get('format');
 
     if (!url) {
       return NextResponse.json({ error: "URL is required" }, { status: 400 });
@@ -13,7 +15,7 @@ export async function POST(request: Request) {
     const metadata = await getYtDlpMetadata(url);
     const fileName = getFileName(metadata, format?.split("+")[0] || "mp4");
 
-    const ytDlpStream = await executeYtDlp(url, format);
+    const ytDlpStream = await executeYtDlp(url, format || undefined);
 
     const passThrough = new PassThrough();
     ytDlpStream.pipe(passThrough);

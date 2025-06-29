@@ -23,11 +23,8 @@ export default function VideoDownloader() {
     setError("");
     setIsFetching(true);
     try {
-      const response = await fetch("/api/yt-dlp/metadata", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
-      });
+      const params = new URLSearchParams({ url });
+      const response = await fetch(`/api/yt-dlp/metadata?${params.toString()}`);
 
       if (!response.ok) {
         throw new Error("Failed to fetch metadata");
@@ -48,11 +45,8 @@ export default function VideoDownloader() {
     setIsDownloading(true);
 
     try {
-      const response = await fetch("/api/yt-dlp/download", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, format }),
-      });
+      const params = new URLSearchParams({ url, format: format || "" });
+      const response = await fetch(`/api/yt-dlp/download?${params.toString()}`);
 
       if (!response.ok) {
         throw new Error("Failed to download video");
@@ -101,8 +95,8 @@ export default function VideoDownloader() {
         />
       </div>
       <button onClick={fetchMetadata} disabled={isFetching} className="w-full">
-        {isFetching ? "Fetching..." : "Fetch Metadata"}
-      </button>
+          {isFetching ? "Fetching..." : "Fetch Metadata"}
+        </button>
       <label>Format (optional)</label>
       <input
         type="text"

@@ -10,9 +10,10 @@ interface Format {
   tbr?: number;
 }
 
-export async function POST(request: Request) {
+export async function GET(request: Request) {
   try {
-    const { url } = await request.json();
+    const { searchParams } = new URL(request.url);
+    const url = searchParams.get("url");
 
     if (!url) {
       return NextResponse.json({ error: "URL is required" }, { status: 400 });
