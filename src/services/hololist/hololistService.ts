@@ -5,9 +5,9 @@ class HololistService {
   private BASE_URL = "https://hololist.net";
 
   /**
-   * Searches for VTuber links based on the provided parameters.
-   * @param params - Partial object containing search parameters.
-   * @returns A promise that resolves to an array of VTuberLink objects.
+   * Search for VTuber links based on the provided parameters
+   * @param params - Search parameters for filtering VTubers
+   * @returns Promise that resolves to an array of VTuberLink objects
    */
   async search(params: Partial<SearchParams> = {}): Promise<VTuberLink[]> {
     try {
@@ -27,7 +27,7 @@ class HololistService {
       const $ = cheerio.load(response.data);
       const links: VTuberLink[] = [];
 
-      // Extracting VTuber links from the page
+      // Extract VTuber links from the page
       $(".vtuber-card a").each((_, element) => {
         const $link = $(element);
         const href = $link.attr("href");

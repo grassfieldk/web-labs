@@ -1,8 +1,9 @@
 {
   "plugins": ["prettier-plugin-tailwindcss"],
+  "printWidth": 90,
+  "proseWrap": "preserve",
   "semi": true,
   "singleQuote": false,
   "tabWidth": 2,
-  "trailingComma": "es5",
-  "printWidth": 100
+  "trailingComma": "es5"
 }

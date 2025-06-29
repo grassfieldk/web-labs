@@ -10,11 +10,11 @@ type Message = {
 };
 
 export default function ChatPage() {
-  // State to hold the parsed messages and partner name
+  // Parsed messages and partner name from LINE chat export
   const [messages, setMessages] = useState<Message[]>([]);
   const [partnerName, setPartnerName] = useState<string>("");
 
-  // State to control the visibility
+  // Visibility controls for message types
   const [showStamps, setShowStamps] = useState(true);
   const [showMedia, setShowMedia] = useState(true);
 
@@ -23,8 +23,8 @@ export default function ChatPage() {
   }, [partnerName]);
 
   /**
-   * Parse exported LINE chat data into Message objects and extract partner name.
-   * @param text - Raw text content from the exported .txt file.
+   * Parse exported LINE chat data into Message objects and extract partner name
+   * @param text - Raw text content from the exported .txt file
    */
   const parseLineData = (text: string) => {
     const lines = text.split("\n");
@@ -54,8 +54,8 @@ export default function ChatPage() {
   };
 
   /**
-   * Handle file input change event, reading the selected file.
-   * @param e - ChangeEvent from the file input.
+   * Handle file input change event and read the selected file
+   * @param e - ChangeEvent from the file input
    */
   const onFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -71,7 +71,12 @@ export default function ChatPage() {
     <div className="text-sm">
       <div className="mx-auto max-w-screen-xl bg-white px-4">
         <h2>{partnerName} とのトーク履歴</h2>
-        <input type="file" accept=".txt" onChange={onFileChange} className="mb-4 w-full" />
+        <input
+          type="file"
+          accept=".txt"
+          onChange={onFileChange}
+          className="mb-4 w-full"
+        />
       </div>
       <div className="space-y-2 bg-[#97a9d0] p-4">
         {messages.map((msg, i) => {
@@ -94,7 +99,10 @@ export default function ChatPage() {
           if (isMedia && !showMedia) return null;
 
           return (
-            <div key={i} className={`flex ${isMe ? "flex-row-reverse" : "flex-row"} items-end`}>
+            <div
+              key={i}
+              className={`flex ${isMe ? "flex-row-reverse" : "flex-row"} items-end`}
+            >
               <div
                 className={`max-w-3/4 rounded-2xl px-4 py-2 break-words ${
                   isMe ? "rounded-br-none bg-[#a1e190]" : "rounded-bl-none bg-gray-200"

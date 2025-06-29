@@ -57,8 +57,9 @@ const halfToFullSymbolMap: { [key: string]: string } = {
 };
 
 /**
- * Converts half-width katakana characters to full-width katakana characters.
+ * Convert half-width katakana characters to full-width katakana characters
  * @param input Half-width katakana string
+ * @param convertSymbols Whether to also convert symbols
  * @returns Full-width katakana string
  */
 export function halfToFullWidth(input: string, convertSymbols?: boolean): string {
@@ -75,8 +76,9 @@ export function halfToFullWidth(input: string, convertSymbols?: boolean): string
 }
 
 /**
- * Converts full-width katakana characters to half-width katakana characters.
+ * Convert full-width katakana characters to half-width katakana characters
  * @param input Full-width katakana string
+ * @param convertSymbols Whether to also convert symbols
  * @returns Half-width katakana string
  */
 export function fullToHalfWidth(input: string, convertSymbols?: boolean): string {
