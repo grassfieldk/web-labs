@@ -83,8 +83,15 @@ export default function VideoDownloader() {
   };
 
   return (
-    <div className="mx-auto max-w-screen-lg p-4">
+    <div className="mx-auto max-w-screen-xl p-4">
       <h1>Video Downloader</h1>
+      <p>
+        Supported sites are based on yt-dlp. See:{" "}
+        <a href="https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md" target="_blank">
+          https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md
+        </a>
+        .
+      </p>
       <div>
         <label>Video URL or ID</label>
         <input
@@ -94,9 +101,14 @@ export default function VideoDownloader() {
           className="w-full"
         />
       </div>
-      <button onClick={fetchMetadata} disabled={isFetching} className="w-full">
+      <div className="button-group flex">
+        <button onClick={fetchMetadata} disabled={isFetching}>
           {isFetching ? "Fetching..." : "Fetch Metadata"}
         </button>
+        <button onClick={downloadVideo} disabled={isDownloading}>
+          {isDownloading ? "Downloading..." : "Download Video"}
+        </button>
+      </div>
       <label>Format (optional)</label>
       <input
         type="text"
@@ -104,13 +116,6 @@ export default function VideoDownloader() {
         onChange={(e) => setFormat(e.target.value)}
         className="w-full"
       />
-      <button
-        onClick={downloadVideo}
-        disabled={isDownloading || formats.length === 0}
-        className="w-full"
-      >
-        {isDownloading ? "Downloading..." : "Download Video"}
-      </button>
       {error && <p>Error: {error}</p>}
       {formats.length > 0 && (
         <div>

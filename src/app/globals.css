@@ -44,7 +44,11 @@ p {
 }
 
 a {
-  @apply cursor-pointer hover:underline;
+  @apply cursor-pointer;
+}
+
+p > a {
+  @apply text-sky-600 hover:underline;
 }
 
 code {
@@ -52,7 +56,7 @@ code {
 }
 
 pre {
-  @apply overflow-x-auto rounded bg-gray-100 p-4;
+  @apply overflow-x-auto rounded bg-neutral-100 p-4;
 }
 
 ul,
@@ -66,15 +70,35 @@ li {
 
 input,
 textarea {
-  @apply my-1 rounded-md border border-neutral-300 bg-white px-4 py-2;
+  @apply my-1 cursor-text rounded-md border border-neutral-300 bg-white px-4 py-2;
 }
 
 button {
-  @apply my-1 cursor-pointer rounded-full bg-gray-800 px-4 py-2 text-white;
+  @apply my-1 cursor-pointer rounded-md border border-neutral-600 bg-neutral-800 px-4 py-2 text-white;
+}
+
+.button-group {
+  @apply flex;
+}
+
+.button-group button {
+  @apply flex-1 border-r-0;
+}
+
+.button-group button:first-child {
+  @apply rounded-l-md rounded-r-none;
+}
+
+.button-group button:last-child {
+  @apply rounded-l-none rounded-r-md border-r;
+}
+
+.button-group button:only-child {
+  @apply rounded-md border-r;
 }
 
 input:disabled,
 textarea:disabled,
 button:disabled {
-  @apply cursor-not-allowed bg-neutral-200 text-neutral-400 opacity-60;
+  @apply cursor-not-allowed border-neutral-400 bg-neutral-400;
 }
