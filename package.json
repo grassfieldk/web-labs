@@ -6,7 +6,7 @@
     "dev": "next dev --turbopack --hostname 0.0.0.0",
     "build": "next build",
     "start": "next start",
-    "format": "biome foramt . --write",
+    "format": "biome format . --write",
     "check": "biome check .",
     "fix": "biome check . --write"
   },
