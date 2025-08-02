@@ -1,7 +1,7 @@
+import type { Metadata } from "next";
+import { Noto_Sans_JP } from "next/font/google";
 import { AppProvider } from "@/components/AppProvider";
 import Navbar from "@/components/layout/Navbar";
-import { Metadata } from "next";
-import { Noto_Sans_JP } from "next/font/google";
 import "./globals.css";
 
 export const metadata: Metadata = {

@@ -50,7 +50,11 @@ export default function VideoDownloaderPage() {
     setMessage(trimmed ? "うまトマ語に非対応の文字は煮込む過程で消滅しました" : null);
 
     // Use centralized log path
-    logMessage(LOG_PATHS.LOG_UMATOMA, "INFO", `Input: ${fullWidthInput}, Output: ${result}`);
+    logMessage(
+      LOG_PATHS.LOG_UMATOMA,
+      "INFO",
+      `Input: ${fullWidthInput}, Output: ${result}`
+    );
   };
 
   const copyOutput = async () => {
@@ -73,13 +77,14 @@ export default function VideoDownloaderPage() {
             href="https://www.matsuyafoods.co.jp/matsuya/menu/teishoku/tei_umatoma_hp_250603.html"
             target="_blank"
             className="mb-0 block text-sky-600"
+            rel="noopener"
           >
             うまトマハンバーグ定食の注文はこちらから
           </a>
           <span className="text-sm">※ ライス小盛がおすすめです</span>
         </div>
         <div>
-          <label>うまトマ語に変換したい文字列を入力してください</label>
+          うまトマ語に変換したい文字列を入力してください
           <textarea
             className="w-full"
             placeholder="ひらがな・カタカナを入力"
@@ -87,13 +92,13 @@ export default function VideoDownloaderPage() {
             onChange={(e) => setInput(e.target.value)}
           />
           <div className="text-right">
-            <button className="w-[6em]" onClick={convertText}>
+            <button type="button" className="w-[6em]" onClick={convertText}>
               変換
             </button>
           </div>
         </div>
         <div>
-          <label>結果</label>
+          結果
           <textarea
             ref={outputRef}
             className="w-full"
@@ -102,7 +107,7 @@ export default function VideoDownloaderPage() {
             readOnly
           />
           <div className="text-right">
-            <button className="w-[6em]" onClick={copyOutput}>
+            <button type="button" className="w-[6em]" onClick={copyOutput}>
               コピー
             </button>
           </div>

@@ -56,7 +56,9 @@ export default function VideoDownloader() {
       let fileName = "video.mp4";
 
       if (contentDisposition) {
-        const fileNameMatch = contentDisposition.match(/filename\*=(?:UTF-8'')?([^;\n]+)/);
+        const fileNameMatch = contentDisposition.match(
+          /filename\*=(?:UTF-8'')?([^;\n]+)/
+        );
         if (fileNameMatch) {
           fileName = decodeURIComponent(fileNameMatch[1]);
         } else {
@@ -87,35 +89,43 @@ export default function VideoDownloader() {
       <h1>Video Downloader</h1>
       <p>
         Supported sites are based on yt-dlp. See:{" "}
-        <a href="https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md" target="_blank">
+        <a
+          href="https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md"
+          target="_blank"
+          rel="noopener"
+        >
           https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md
         </a>
         .
       </p>
       <div>
-        <label>Video URL or ID</label>
-        <input
-          type="text"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          className="w-full"
-        />
+        <label>
+          Video URL or ID
+          <input
+            type="text"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            className="w-full"
+          />
+        </label>
       </div>
       <div className="button-group flex">
-        <button onClick={fetchMetadata} disabled={isFetching}>
+        <button type="button" onClick={fetchMetadata} disabled={isFetching}>
           {isFetching ? "Fetching..." : "Fetch Metadata"}
         </button>
-        <button onClick={downloadVideo} disabled={isDownloading}>
+        <button type="button" onClick={downloadVideo} disabled={isDownloading}>
           {isDownloading ? "Downloading..." : "Download Video"}
         </button>
       </div>
-      <label>Format (optional)</label>
-      <input
-        type="text"
-        value={format}
-        onChange={(e) => setFormat(e.target.value)}
-        className="w-full"
-      />
+      <label>
+        Format (optional)
+        <input
+          type="text"
+          value={format}
+          onChange={(e) => setFormat(e.target.value)}
+          className="w-full"
+        />
+      </label>
       {error && <p>Error: {error}</p>}
       {formats.length > 0 && (
         <div>

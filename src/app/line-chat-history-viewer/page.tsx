@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, ChangeEvent } from "react";
+import React, { type ChangeEvent, useState } from "react";
 
 type Message = {
   date?: string;
@@ -116,10 +116,10 @@ export default function ChatPage() {
         })}
       </div>
       <div className="fixed right-0 bottom-0 left-0 flex justify-center space-x-4 bg-white p-2">
-        <button onClick={() => setShowStamps(!showStamps)}>
+        <button type="button" onClick={() => setShowStamps(!showStamps)}>
           スタンプ表示 {showStamps ? "あり" : "なし"}
         </button>
-        <button onClick={() => setShowMedia(!showMedia)}>
+        <button type="button" onClick={() => setShowMedia(!showMedia)}>
           メディア表示 {showMedia ? "あり" : "なし"}
         </button>
       </div>

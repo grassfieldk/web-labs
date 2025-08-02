@@ -1,6 +1,6 @@
-import { LogLevel } from "@/types/LogLevel";
 import fs from "fs";
 import path from "path";
+import type { LogLevel } from "@/types/LogLevel";
 
 /**
  * Write log messages to file with timestamp and level

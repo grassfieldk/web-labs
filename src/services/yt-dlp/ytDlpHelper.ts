@@ -38,7 +38,9 @@ export const getYtDlpMetadata = async (url: string) => {
  */
 export const getFileName = (metadata: any, ext: string) => {
   const videoId = metadata.id || "unknown_id";
-  const title = metadata.title ? metadata.title.replace(/[^a-zA-Z0-9-_]/g, "_") : "unknown_title";
+  const title = metadata.title
+    ? metadata.title.replace(/[^a-zA-Z0-9-_]/g, "_")
+    : "unknown_title";
 
   return `${videoId}_${title}.${ext}`;
 };

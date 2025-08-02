@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
-import HololistService, { SearchParams } from "@/services/hololist/hololistService";
+import { type NextRequest, NextResponse } from "next/server";
+import HololistService, { type SearchParams } from "@/services/hololist/hololistService";
 
 export async function GET(req: NextRequest) {
   try {

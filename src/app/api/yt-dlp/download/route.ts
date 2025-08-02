@@ -1,12 +1,16 @@
-import { executeYtDlp, getFileName, getYtDlpMetadata } from "@/services/yt-dlp/ytDlpHelper";
 import { NextResponse } from "next/server";
 import { PassThrough } from "stream";
+import {
+  executeYtDlp,
+  getFileName,
+  getYtDlpMetadata,
+} from "@/services/yt-dlp/ytDlpHelper";
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const url = searchParams.get('url');
-    const format = searchParams.get('format');
+    const url = searchParams.get("url");
+    const format = searchParams.get("format");
 
     if (!url) {
       return NextResponse.json({ error: "URL is required" }, { status: 400 });
