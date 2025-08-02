@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { LOG_PATHS } from "@/config/logPaths";
-import { logMessage } from "@/utils/logger";
+import { logMessage } from "@/utils/logger.server";
 import { halfToFullWidth } from "@/utils/stringConverter";
 
 export default function VideoDownloaderPage() {

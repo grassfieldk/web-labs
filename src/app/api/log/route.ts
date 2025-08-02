@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { LogLevel } from "@/types/LogLevel";
-import { log } from "@/utils/logger";
+import { log } from "@/utils/logger.client";
 
 type LogRequestBody = {
   filePath: string;
