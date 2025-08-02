@@ -1,20 +1,39 @@
+import { getYtDlpMetadata } from "@/services/yt-dlp/ytDlpHelper";
 import { NextResponse } from "next/server";
-import { runYtDlpJson } from "../../../../lib/yt-dlp";
 
-export const runtime = "nodejs";
+interface Format {
+  format_id: string;
+  ext: string;
+  height?: number;
+  fps?: number;
+  filesize?: number;
+  tbr?: number;
+}
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const v = searchParams.get("v");
-  if (!v) {
-    return NextResponse.json({ error: "Missing v parameter" }, { status: 400 });
-  }
-
-  const videoUrl = /^https?:/.test(v) ? v : `https://www.youtube.com/watch?v=${v}`;
   try {
-    const info = await runYtDlpJson([videoUrl]);
-    return NextResponse.json({ info });
-  } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    const { searchParams } = new URL(request.url);
+    const url = searchParams.get("url");
+
+    if (!url) {
+      return NextResponse.json({ error: "URL is required" }, { status: 400 });
+    }
+
+    const metadata = await getYtDlpMetadata(url);
+
+    const formats = (metadata.formats as Format[]).map((format) => ({
+      id: format.format_id,
+      ext: format.ext,
+      resolution: format.height ? `${format.height}p` : "audio only",
+      fps: format.fps || 0,
+      size: format.filesize || 0,
+      bitrate: format.tbr || 0,
+    }));
+
+    return NextResponse.json({ formats });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

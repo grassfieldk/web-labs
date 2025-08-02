@@ -11,7 +11,7 @@ const Navbar = () => {
         </Link>
         <div className="flex items-center space-x-4">
           <Link href="/line-chat-history-viewer">LINE Chat History Viewer</Link>
-          <Link href="/video-downloader">YouTube Video Downloader</Link>
+          <Link href="/video-downloader">Video Downloader</Link>
         </div>
       </div>
     </nav>
