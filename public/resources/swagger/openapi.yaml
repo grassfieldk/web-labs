@@ -1,0 +1,95 @@
+openapi: 3.1.0
+info:
+  title: Web Utils API
+  version: 1.0.0
+  description: Web Utils API Reference
+paths:
+  /api/hololist:
+    get:
+      summary: VTuber データベースの検索
+      description: https://hololist.net/ のデータをフェッチします。
+      parameters:
+        - in: query
+          name: keyword
+          schema:
+            type: string
+          required: false
+          description: 検索キーワード
+      responses:
+        '200':
+          description: 正常レスポンス
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    name:
+                      type: string
+  /api/yt-dlp/metadata:
+    get:
+      summary: yt-dlp - 動画メタデータ取得
+      description: 動画のメタデータを取得します。
+      parameters:
+        - in: query
+          name: url
+          schema:
+            type: string
+          required: true
+          description: 動画URL
+      responses:
+        '200':
+          description: メタデータ取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  formats:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        ext:
+                          type: string
+                        resolution:
+                          type: string
+                        fps:
+                          type: integer
+                        size:
+                          type: integer
+                        bitrate:
+                          type: number
+        '400':
+          description: URL 未指定
+        '500':
+          description: 取得失敗
+  /api/yt-dlp/download:
+    get:
+      summary: yt-dlp 動画ダウンロード
+      description: 動画をダウンロードします。
+      parameters:
+        - in: query
+          name: url
+          schema:
+            type: string
+          required: true
+          description: 動画URL
+        - in: query
+          name: format
+          schema:
+            type: string
+          required: false
+          description: ダウンロードフォーマット（/api/yt-dlp/metadata で取得可能）、指定無しの場合は yt-dlp のデフォルト挙動に準拠
+      responses:
+        '200':
+          description: ダウンロード成功（ストリーム）
+        '400':
+          description: URL 未指定
+        '500':
+          description: ダウンロード失敗
