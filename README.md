@@ -1,31 +1,60 @@
-# Getting Started
 
-This repository is a template based on Next.js 15.
+# Web Utils
 
-## Development Setup
 
-1. Change the application name
-   Modify the "name" field in the package.json file (currently "name": "<current-name>") to match your project.
-2. Install dependencies
-   ```
-   npm install
-   ```
-3. Remove existing git history
-   If a .git directory exists, remove it:
-   ```
-   rm -rf .git
-   ```
+## Requirements
 
-## Run the App
+- Node.js (v18 or later recommended)
+- npm (v9 or later recommended)
 
-To ensure the application starts correctly:
 
-```
+## Getting Started
+
+```bash
+npm install
 npm run dev
 ```
 
-Open your browser and visit http://localhost:3000 to ensure the application is running as expected.
 
-### Access from External Devices
+## Build & Production
 
-If your device is on the same network, you can also access the application from external devices like smartphones by using the host machine's local IP address (e.g., `http://<your-local-ip>:3000`).
+```bash
+npm run build
+npm run start
+```
+
+## Running with PM2
+
+### Initial Startup
+
+```bash
+pm2 start npm --name "web-utils" -- run start
+```
+
+### Enable pm2 Auto-Start
+
+```bash
+pm2 startup
+pm2 save
+```
+
+### Manual Management
+
+```bash
+# Restart
+pm2 restart web-utils
+# Stop
+pm2 stop web-utils
+# Start
+pm2 start web-utils
+```
+
+### Change Port or Environment Variables
+
+If you want to change the port or other environment variables, delete the process and re-register:
+
+```bash
+pm2 delete web-utils
+PORT=NEW_PORT pm2 start npm --name "web-utils" -- run start
+pm2 save
+```
