@@ -29,7 +29,10 @@ const Navbar = () => {
         paddingLeft: 20,
         paddingRight: 20,
         borderBottom: `1px solid ${isMounted && colorScheme === "dark" ? "var(--mantine-color-dark-5)" : "var(--mantine-color-gray-3)"}`,
-        backgroundColor: isMounted && colorScheme === "dark" ? "var(--mantine-color-dark-8)" : "var(--mantine-color-gray-0)",
+        backgroundColor:
+          isMounted && colorScheme === "dark"
+            ? "var(--mantine-color-dark-8)"
+            : "var(--mantine-color-gray-0)",
         zIndex: 1000,
       }}
     >
@@ -47,7 +50,12 @@ const Navbar = () => {
 
       <Group gap="xs">
         <ActionIcon onClick={() => toggleColorScheme()} variant="default" size="lg">
-          {isMounted && (colorScheme === "dark" ? <MdLightMode size={20} /> : <MdDarkMode size={20} />)}
+          {isMounted &&
+            (colorScheme === "dark" ? (
+              <MdLightMode size={20} />
+            ) : (
+              <MdDarkMode size={20} />
+            ))}
         </ActionIcon>
 
         <Menu
