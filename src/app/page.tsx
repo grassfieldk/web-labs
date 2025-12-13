@@ -1,31 +1,45 @@
 "use client";
 
+import { Card, SimpleGrid, Stack, Text, Title } from "@mantine/core";
 import Link from "next/link";
 import { tools } from "@/config/pages";
 
 export default function Home() {
   return (
-    <div className="mx-auto max-w-screen-xl p-4">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Web Utils</h1>
-        <p className="text-gray-600">
+    <Stack gap="xl">
+      <div>
+        <Title order={1} mb="sm">
+          Web Utils
+        </Title>
+        <Text c="dimmed">
           便利で実用的なツールをまとめたユーティリティプラットフォーム
-        </p>
+        </Text>
       </div>
 
-      {/* Tools Section */}
-      <div className="space-y-4">
+      <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="md">
         {tools.map((tool) => (
           <Link
             key={tool.href}
             href={tool.href}
-            className="block p-6 border border-gray-200 rounded-lg hover:border-gray-400 hover:bg-gray-50 transition-colors"
+            style={{ textDecoration: "none", color: "inherit" }}
           >
-            <h2>{tool.name}</h2>
-            <p className="text-gray-600">{tool.description}</p>
+            <Card
+              shadow="sm"
+              padding="lg"
+              radius="md"
+              withBorder
+              style={{ cursor: "pointer", transition: "all 0.2s", height: "100%" }}
+            >
+              <Title order={3} size="h4" mb="xs">
+                {tool.name}
+              </Title>
+              <Text size="sm" c="dimmed">
+                {tool.description}
+              </Text>
+            </Card>
           </Link>
         ))}
-      </div>
-    </div>
+      </SimpleGrid>
+    </Stack>
   );
 }

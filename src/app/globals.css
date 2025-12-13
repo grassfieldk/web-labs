@@ -1,104 +1,22 @@
-@import "tailwindcss";
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: inherit;
+}
 
 ::-webkit-scrollbar {
   display: none;
 }
 
 * {
-  transition:
-    background-color 0.3s ease,
-    color 0.3s ease;
   scrollbar-width: none;
   -ms-overflow-style: none;
-}
-
-body {
-  @apply bg-white text-neutral-800;
-}
-
-h1,
-h2,
-h3,
-h4 {
-  @apply my-4 font-bold;
-}
-
-h1 {
-  @apply text-3xl;
-}
-
-h2 {
-  @apply text-2xl;
-}
-
-h3 {
-  @apply text-xl;
-}
-
-h4 {
-  @apply text-lg;
-}
-
-p {
-  @apply my-2;
-}
-
-a {
-  @apply cursor-pointer;
-}
-
-p > a {
-  @apply text-sky-600 hover:underline;
-}
-
-code {
-  @apply rounded bg-neutral-800 px-1 text-neutral-200;
-}
-
-pre {
-  @apply overflow-x-auto rounded bg-neutral-100 p-4;
-}
-
-ul,
-ol {
-  @apply my-2 list-inside list-disc;
-}
-
-li {
-  @apply my-1;
-}
-
-input,
-textarea {
-  @apply my-1 cursor-text rounded-md border border-neutral-300 bg-white px-4 py-2;
-}
-
-button {
-  @apply my-1 cursor-pointer rounded-md border border-neutral-600 bg-neutral-800 px-4 py-2 text-white;
-}
-
-.button-group {
-  @apply flex;
-}
-
-.button-group button {
-  @apply flex-1 border-r-0;
-}
-
-.button-group button:first-child {
-  @apply rounded-l-md rounded-r-none;
-}
-
-.button-group button:last-child {
-  @apply rounded-l-none rounded-r-md border-r;
-}
-
-.button-group button:only-child {
-  @apply rounded-md border-r;
-}
-
-input:disabled,
-textarea:disabled,
-button:disabled {
-  @apply cursor-not-allowed border-neutral-400 bg-neutral-400;
 }

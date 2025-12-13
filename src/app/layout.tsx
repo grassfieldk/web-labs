@@ -1,5 +1,7 @@
+import { Container } from "@mantine/core";
 import type { Metadata } from "next";
 import { Noto_Sans_JP } from "next/font/google";
+import "@mantine/core/styles.css";
 import { AppProvider } from "@/components/AppProvider";
 import Navbar from "@/components/layout/Navbar";
 import "./globals.css";
@@ -28,7 +30,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={notoSansJp.className}>
         <AppProvider>
           <Navbar />
-          <main className="pt-16 pb-8">{children}</main>
+          <main style={{ paddingTop: "60px", paddingBottom: "32px" }}>
+            <Container size="xl" py="xl">
+              {children}
+            </Container>
+          </main>
         </AppProvider>
       </body>
     </html>

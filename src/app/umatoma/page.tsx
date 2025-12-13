@@ -1,6 +1,8 @@
 "use client";
 
+import { Alert, Button, Stack, Text, Textarea, Title } from "@mantine/core";
 import { useRef, useState } from "react";
+import { MdError } from "react-icons/md";
 import { LOG_PATHS } from "@/config/logPaths";
 import { logMessage } from "@/utils/logger.server";
 import { halfToFullWidth } from "@/utils/stringConverter";
@@ -49,7 +51,6 @@ export default function VideoDownloaderPage() {
     setOutput(result);
     setMessage(trimmed ? "うまトマ語に非対応の文字は煮込む過程で消滅しました" : null);
 
-    // Use centralized log path
     logMessage(
       LOG_PATHS.LOG_UMATOMA,
       "INFO",
@@ -69,51 +70,60 @@ export default function VideoDownloaderPage() {
   };
 
   return (
-    <div className="mx-auto max-w-xl p-6">
-      <h1>かなカナ/うまトマ語コンバーター</h1>
-      <div className="flex flex-col gap-4">
+    <Stack gap="lg">
+      <div>
+        <Title order={1}>かなカナ/うまトマ語コンバーター</Title>
+        <Text
+          component="a"
+          href="https://www.matsuyafoods.co.jp/matsuya/menu/teishoku/tei_umatoma_hp_250603.html"
+          target="_blank"
+          c="blue"
+          size="sm"
+          style={{ display: "block", marginTop: "8px" }}
+        >
+          うまトマハンバーグ定食の注文はこちらから
+        </Text>
+        <Text size="xs" c="dimmed">
+          ※ ライス小盛がおすすめです
+        </Text>
+      </div>
+
+      <Stack gap="md">
         <div>
-          <a
-            href="https://www.matsuyafoods.co.jp/matsuya/menu/teishoku/tei_umatoma_hp_250603.html"
-            target="_blank"
-            className="mb-0 block text-sky-600"
-            rel="noopener"
-          >
-            うまトマハンバーグ定食の注文はこちらから
-          </a>
-          <span className="text-sm">※ ライス小盛がおすすめです</span>
-        </div>
-        <div>
-          うまトマ語に変換したい文字列を入力してください
-          <textarea
-            className="w-full"
+          <Text mb="xs">うまトマ語に変換したい文字列を入力してください</Text>
+          <Textarea
             placeholder="ひらがな・カタカナを入力"
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => setInput(e.currentTarget.value)}
+            minRows={4}
           />
-          <div className="text-right">
-            <button type="button" className="w-[6em]" onClick={convertText}>
-              変換
-            </button>
-          </div>
         </div>
+
+        <Button onClick={convertText} fullWidth>
+          変換
+        </Button>
+
         <div>
-          結果
-          <textarea
+          <Text mb="xs">結果</Text>
+          <Textarea
             ref={outputRef}
-            className="w-full"
             placeholder="ここに変換結果が表示されます"
             value={output}
             readOnly
+            minRows={4}
           />
-          <div className="text-right">
-            <button type="button" className="w-[6em]" onClick={copyOutput}>
-              コピー
-            </button>
-          </div>
         </div>
-        {message && <div className="mt-2 text-red-600">{message}</div>}
-      </div>
-    </div>
+
+        <Button onClick={copyOutput} fullWidth variant="light">
+          コピー
+        </Button>
+
+        {message && (
+          <Alert icon={<MdError size={16} />} color="red" title="メッセージ">
+            {message}
+          </Alert>
+        )}
+      </Stack>
+    </Stack>
   );
 }

@@ -1,6 +1,17 @@
 "use client";
 
+import {
+  Alert,
+  Button,
+  Group,
+  Stack,
+  Table,
+  Text,
+  TextInput,
+  Title,
+} from "@mantine/core";
 import { useState } from "react";
+import { MdError } from "react-icons/md";
 
 interface Format {
   id: string;
@@ -13,7 +24,7 @@ interface Format {
 
 export default function VideoDownloader() {
   const [url, setUrl] = useState("");
-  const [format, setFormat] = useState("");
+  const [format, setFormat] = useState<string | null>("");
   const [formats, setFormats] = useState<Format[]>([]);
   const [error, setError] = useState("");
   const [isFetching, setIsFetching] = useState(false);
@@ -77,7 +88,6 @@ export default function VideoDownloader() {
       link.click();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Unknown error";
-
       setError(errorMessage);
     } finally {
       setIsDownloading(false);
@@ -85,79 +95,82 @@ export default function VideoDownloader() {
   };
 
   return (
-    <div className="mx-auto max-w-screen-xl p-4">
-      <h1>Video Downloader</h1>
-      <p>
-        Supported sites are based on yt-dlp. See:{" "}
-        <a
-          href="https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md"
-          target="_blank"
-          rel="noopener"
-        >
-          https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md
-        </a>
-        .
-      </p>
+    <Stack gap="lg">
       <div>
-        <label>
-          Video URL or ID
-          <input
-            type="text"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            className="w-full"
-          />
-        </label>
+        <Title order={1}>Video Downloader</Title>
+        <Text c="dimmed" size="sm" mt="xs">
+          Supported sites are based on yt-dlp. See:{" "}
+          <a
+            href="https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md"
+            target="_blank"
+            rel="noopener"
+            style={{ color: "var(--mantine-color-blue-6)" }}
+          >
+            https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md
+          </a>
+        </Text>
       </div>
-      <div className="button-group flex">
-        <button type="button" onClick={fetchMetadata} disabled={isFetching}>
-          {isFetching ? "Fetching..." : "Fetch Metadata"}
-        </button>
-        <button type="button" onClick={downloadVideo} disabled={isDownloading}>
-          {isDownloading ? "Downloading..." : "Download Video"}
-        </button>
-      </div>
-      <label>
-        Format (optional)
-        <input
-          type="text"
-          value={format}
-          onChange={(e) => setFormat(e.target.value)}
-          className="w-full"
-        />
-      </label>
-      {error && <p>Error: {error}</p>}
+
+      <TextInput
+        label="Video URL or ID"
+        placeholder="Enter video URL"
+        value={url}
+        onChange={(e) => setUrl(e.target.value)}
+      />
+
+      <Group grow>
+        <Button onClick={fetchMetadata} loading={isFetching}>
+          Fetch Metadata
+        </Button>
+        <Button onClick={downloadVideo} loading={isDownloading} color="green">
+          Download Video
+        </Button>
+      </Group>
+
+      <TextInput
+        label="Format (optional)"
+        placeholder="Leave empty to use default format"
+        value={format || ""}
+        onChange={(e) => setFormat(e.target.value)}
+      />
+
+      {error && (
+        <Alert icon={<MdError size={16} />} color="red" title="Error">
+          {error}
+        </Alert>
+      )}
+
       {formats.length > 0 && (
         <div>
-          <h2>Available Formats</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Ext</th>
-                <th>Resolution</th>
-                <th>FPS</th>
-                <th>Size (MB)</th>
-                <th>Bitrate (kbps)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {formats
-                // .filter((format) => format.size > 0)
-                .map((format) => (
-                  <tr key={format.id}>
-                    <td>{format.id}</td>
-                    <td>{format.ext}</td>
-                    <td>{format.resolution}</td>
-                    <td>{format.fps}</td>
-                    <td>{(format.size / (1024 * 1024)).toFixed(2)}</td>
-                    <td>{(format.bitrate / 1000).toFixed(2)}</td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
+          <Title order={2} size="h3" mb="md">
+            Available Formats
+          </Title>
+          <Table striped highlightOnHover>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>ID</Table.Th>
+                <Table.Th>Ext</Table.Th>
+                <Table.Th>Resolution</Table.Th>
+                <Table.Th>FPS</Table.Th>
+                <Table.Th>Size (MB)</Table.Th>
+                <Table.Th>Bitrate (kbps)</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {formats.map((fmt) => (
+                <Table.Tr key={fmt.id}>
+                  <Table.Td>{fmt.id}</Table.Td>
+                  <Table.Td>{fmt.ext}</Table.Td>
+                  <Table.Td>{fmt.resolution}</Table.Td>
+                  <Table.Td>{fmt.fps}</Table.Td>
+                  <Table.Td>{(fmt.size / (1024 * 1024)).toFixed(2)}</Table.Td>
+                  <Table.Td>{(fmt.bitrate / 1000).toFixed(2)}</Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
         </div>
       )}
-    </div>
+    </Stack>
   );
 }

@@ -1,50 +1,83 @@
 "use client";
 
+import { ActionIcon, Burger, Group, Menu, useMantineColorScheme } from "@mantine/core";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { MdDarkMode, MdLightMode } from "react-icons/md";
 import { tools } from "@/config/pages";
 
 const Navbar = () => {
-  const [isOpen, setIsOpen] = useState(false);
+  const [menuOpened, setMenuOpened] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+  const { colorScheme, toggleColorScheme } = useMantineColorScheme();
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   return (
-    <nav className="fixed w-full bg-neutral-900 text-white">
-      <div className="container mx-auto flex h-16 max-w-screen-xl items-center justify-between p-4">
-        <Link href="/" className="text-xl">
-          Web Utils
-        </Link>
+    <header
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        height: 60,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingLeft: 20,
+        paddingRight: 20,
+        borderBottom: `1px solid ${isMounted && colorScheme === "dark" ? "var(--mantine-color-dark-5)" : "var(--mantine-color-gray-3)"}`,
+        backgroundColor: isMounted && colorScheme === "dark" ? "var(--mantine-color-dark-8)" : "var(--mantine-color-gray-0)",
+        zIndex: 1000,
+      }}
+    >
+      <Link
+        href="/"
+        style={{
+          textDecoration: "none",
+          color: "inherit",
+          fontSize: 18,
+          fontWeight: 600,
+        }}
+      >
+        Web Utils
+      </Link>
 
-        {/* Menu Button */}
-        <div className="relative">
-          <button
-            className="flex flex-col space-y-1 hover:opacity-80"
-            onClick={() => setIsOpen(!isOpen)}
-          >
-            <div className="w-6 h-0.5 bg-white"></div>
-            <div className="w-6 h-0.5 bg-white"></div>
-            <div className="w-6 h-0.5 bg-white"></div>
-          </button>
+      <Group gap="xs">
+        <ActionIcon onClick={() => toggleColorScheme()} variant="default" size="lg">
+          {isMounted && (colorScheme === "dark" ? <MdLightMode size={20} /> : <MdDarkMode size={20} />)}
+        </ActionIcon>
 
-          {/* Dropdown Menu */}
-          {isOpen && (
-            <div className="absolute right-0 mt-2 bg-neutral-800 rounded-lg shadow-lg border border-neutral-700 z-50">
-              <div className="flex flex-col py-2">
-                {tools.map((tool) => (
-                  <Link
-                    key={tool.href}
-                    href={tool.href}
-                    className="block px-4 py-2 text-sm hover:bg-neutral-700 transition-colors whitespace-nowrap"
-                    onClick={() => setIsOpen(false)}
-                  >
-                    {tool.name}
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </nav>
+        <Menu
+          opened={menuOpened}
+          onOpen={() => setMenuOpened(true)}
+          onClose={() => setMenuOpened(false)}
+        >
+          <Menu.Target>
+            <Burger
+              opened={menuOpened}
+              onClick={() => setMenuOpened(!menuOpened)}
+              size="sm"
+            />
+          </Menu.Target>
+
+          <Menu.Dropdown>
+            {tools.map((tool) => (
+              <Link
+                key={tool.href}
+                href={tool.href}
+                style={{ textDecoration: "none", color: "inherit" }}
+                onClick={() => setMenuOpened(false)}
+              >
+                <Menu.Item>{tool.name}</Menu.Item>
+              </Link>
+            ))}
+          </Menu.Dropdown>
+        </Menu>
+      </Group>
+    </header>
   );
 };
 

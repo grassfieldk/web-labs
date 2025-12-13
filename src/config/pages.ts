@@ -16,7 +16,7 @@ export const tools: Tool[] = [
     href: "/video-downloader",
   },
   {
-    name: "かなカナ/うまトマ語コンバーター",
+    name: "うまトマ語コンバーター",
     description: "うままううまママゔううう",
     href: "/umatoma",
   },
