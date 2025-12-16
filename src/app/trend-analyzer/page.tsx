@@ -49,8 +49,19 @@ function countEmojiOrSymbolChars(text: string) {
   return (text.match(/[\p{S}\p{P}]/gu) ?? []).length;
 }
 
-function hasConjunction(tokens: kuromoji.Token[]) {
-  return tokens.some((t) => t.pos.startsWith("接続詞"));
+function hasConjunctionOrParticle(tokens: kuromoji.Token[]) {
+  // Treat "connective" signals broadly.
+  // - 接続詞: そして/でも/だから...
+  // - 助詞: が/は/に/を/て/で/けど...
+  // - 助動詞: だ/です/ます/た...
+  // - 記号: 読点/句点/括弧など（kuromoji上は多くが"記号"）
+  return tokens.some(
+    (t) =>
+      t.pos.startsWith("接続詞") ||
+      t.pos.startsWith("助詞") ||
+      t.pos.startsWith("助動詞") ||
+      t.pos.startsWith("記号")
+  );
 }
 
 // POS (Part of Speech) categories for meaningful phrase extraction
@@ -235,9 +246,13 @@ function analyzeBuzzwords(
     // Use kuromoji for morphological analysis (with POS tagging)
     const tokens = tokenizer.tokenize(cleaned);
 
-    // If there's no conjunction, treat short-ish messages as a single phrase.
+    // If there's no connective signal (conjunction/particle/auxverb/symbol),
+    // treat short-ish messages as a single phrase.
     // Guarded by length to avoid counting full long sentences.
-    if (cleaned.length <= FULL_COUNT_MAX_LEN_NO_CONJUNCTION && !hasConjunction(tokens)) {
+    if (
+      cleaned.length <= FULL_COUNT_MAX_LEN_NO_CONJUNCTION &&
+      !hasConjunctionOrParticle(tokens)
+    ) {
       const key = `m:${normalizedWhole}`;
       tryCount({
         key,
@@ -262,6 +277,19 @@ function analyzeBuzzwords(
 
     for (const segment of segments) {
       const maxN = Math.min(MAX_NGRAM, segment.length);
+
+      // Avoid extracting multiple overlapping phrases from the same region.
+      // Generate candidates, then greedily pick non-overlapping ones.
+      type SegmentCandidate = {
+        start: number;
+        end: number;
+        phrase: string;
+        tokens: string[];
+        isNounOnly: boolean;
+      };
+
+      const candidates: SegmentCandidate[] = [];
+
       for (let i = 0; i < segment.length; i++) {
         for (let n = 2; n <= maxN && i + n <= segment.length; n++) {
           const phraseItems = segment.slice(i, i + n);
@@ -270,15 +298,47 @@ function analyzeBuzzwords(
 
           if (!isMeaningfulPhrase(phrase)) continue;
 
-          // Key by token sequence to avoid merging different tokenizations.
-          const key = `t:${phraseTokens.join("\u0001")}`;
-          tryCount({
-            key,
+          candidates.push({
+            start: i,
+            end: i + n,
             phrase,
             tokens: phraseTokens,
-            countedKeysInMessage,
+            isNounOnly: phraseItems.every((p) => p.pos.startsWith("名詞")),
           });
         }
+      }
+
+      candidates.sort((a, b) => {
+        // Prefer noun-only phrases first.
+        if (a.isNounOnly !== b.isNounOnly) return a.isNounOnly ? -1 : 1;
+        // Prefer longer token spans to reduce sub-phrase duplicates.
+        if (b.tokens.length !== a.tokens.length) return b.tokens.length - a.tokens.length;
+        // Then prefer longer surface length.
+        return b.phrase.length - a.phrase.length;
+      });
+
+      const used = new Array<boolean>(segment.length).fill(false);
+
+      for (const cand of candidates) {
+        let overlaps = false;
+        for (let k = cand.start; k < cand.end; k++) {
+          if (used[k]) {
+            overlaps = true;
+            break;
+          }
+        }
+        if (overlaps) continue;
+
+        // Key by token sequence to avoid merging different tokenizations.
+        const key = `t:${cand.tokens.join("\u0001")}`;
+        tryCount({
+          key,
+          phrase: cand.phrase,
+          tokens: cand.tokens,
+          countedKeysInMessage,
+        });
+
+        for (let k = cand.start; k < cand.end; k++) used[k] = true;
       }
     }
   }
