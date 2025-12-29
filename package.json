@@ -11,6 +11,7 @@
     "fix": "biome check . --write"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@mantine/core": "^8.3.10",
     "@mantine/hooks": "^8.3.10",
     "axios": "^1.9.0",
