@@ -3,8 +3,7 @@
 import { Alert, Button, Stack, Text, Textarea, Title } from "@mantine/core";
 import { useRef, useState } from "react";
 import { MdError } from "react-icons/md";
-import { LOG_PATHS } from "@/config/logPaths";
-import { logMessage } from "@/utils/logger.server";
+import { logMessage } from "@/utils/logger.client";
 import { halfToFullWidth } from "@/utils/stringConverter";
 
 export default function VideoDownloaderPage() {
@@ -51,11 +50,7 @@ export default function VideoDownloaderPage() {
     setOutput(result);
     setMessage(trimmed ? "うまトマ語に非対応の文字は煮込む過程で消滅しました" : null);
 
-    logMessage(
-      LOG_PATHS.LOG_UMATOMA,
-      "INFO",
-      `Input: ${fullWidthInput}, Output: ${result}`
-    );
+    logMessage("umatoma", "INFO", `Input: ${fullWidthInput}, Output: ${result}`);
   };
 
   const copyOutput = async () => {

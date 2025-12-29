@@ -1,50 +1,26 @@
-import fs from "fs";
-import path from "path";
 import type { LogLevel } from "@/types/LogLevel";
 
 /**
- * Write log messages to file with timestamp and level
- *
- * @param logFilePath Path to the log file
+ * Send a log message from client-side to server-side log API
+ * @param app Application or feature ID (e.g., "umatoma", "line-viewer")
  * @param level Log level
  * @param message Log message
- *
- * @example
- * writeLog("./app.log", "INFO", "Application started");
+ * @param context Additional context data
  */
-function writeLog(logFilePath: string, level: LogLevel, message: string): void {
-  const timestamp = new Date().toISOString();
-  const logEntry = `[${timestamp}] [${level}] ${message}\n`;
-
+export async function logMessage(
+  app: string,
+  level: LogLevel,
+  message: string,
+  context?: Record<string, unknown>
+): Promise<void> {
   try {
-    const absolutePath = path.resolve(logFilePath);
-    fs.appendFileSync(absolutePath, logEntry, "utf8");
+    await fetch("/api/log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ app, level, message, context }),
+    });
   } catch (err) {
-    console.error("Failed to write to log file:", err);
+    // Fallback to console if logging fails
+    console.error("Failed to send log to server:", err);
   }
 }
-
-/**
- * Log messages to file with specified level
- *
- * @param level Log level
- * @param logFilePath Path to the log file
- * @param message Log message
- *
- * @example
- * log("INFO", "./app.log", "Application started");
- */
-function log(level: LogLevel, logFilePath: string, message: string): void {
-  writeLog(logFilePath, level, message);
-}
-
-log.debug = (logFilePath: string, message: string) =>
-  writeLog(logFilePath, "DEBUG", message);
-log.info = (logFilePath: string, message: string) =>
-  writeLog(logFilePath, "INFO", message);
-log.warn = (logFilePath: string, message: string) =>
-  writeLog(logFilePath, "WARN", message);
-log.error = (logFilePath: string, message: string) =>
-  writeLog(logFilePath, "ERROR", message);
-
-export { log };

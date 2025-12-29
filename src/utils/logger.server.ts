@@ -1,23 +1,47 @@
 import type { LogLevel } from "@/types/LogLevel";
 
+export interface LogContext {
+  [key: string]: unknown;
+}
+
 /**
- * Send a log message from client-side to server-side log API
- * @param filePath Path to the log file
+ * Output log in JSON format to stdout/stderr
+ *
  * @param level Log level
+ * @param app Application or feature ID
  * @param message Log message
+ * @param context Additional context data
  */
-export async function logMessage(
-  filePath: string,
+function output(
   level: LogLevel,
-  message: string
-): Promise<void> {
-  try {
-    await fetch("/api/log", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ filePath, level, message }),
-    });
-  } catch (err) {
-    console.error("Failed to log message:", err);
+  app: string,
+  message: string,
+  context?: LogContext
+): void {
+  const entry = {
+    timestamp: new Date().toISOString(),
+    level,
+    app,
+    message,
+    context,
+  };
+
+  const json = JSON.stringify(entry);
+
+  if (level === "ERROR") {
+    console.error(json);
+  } else {
+    console.log(json);
   }
 }
+
+export const log = {
+  debug: (app: string, message: string, context?: LogContext) =>
+    output("DEBUG", app, message, context),
+  info: (app: string, message: string, context?: LogContext) =>
+    output("INFO", app, message, context),
+  warn: (app: string, message: string, context?: LogContext) =>
+    output("WARN", app, message, context),
+  error: (app: string, message: string, context?: LogContext) =>
+    output("ERROR", app, message, context),
+};
