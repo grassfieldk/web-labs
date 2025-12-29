@@ -7,22 +7,27 @@ export interface Tool {
 export const tools: Tool[] = [
   {
     name: "今年の流行語大賞",
-    description: "LINE のチャット履歴を解析して今年の流行語を決めるツール",
+    description: "LINE のチャット履歴を解析して今年の流行語を決める",
     href: "/trend-analyzer",
   },
   {
     name: "LINE Chat History Viewer",
-    description: "LINE のチャット履歴を表示・検索・管理するツール",
+    description: "LINE のチャット履歴を表示・検索・管理",
     href: "/line-chat-history-viewer",
   },
   {
     name: "Video Downloader",
-    description: "YouTube などの動画をダウンロードするツール",
+    description: "YouTube などの動画をダウンロード",
     href: "/video-downloader",
   },
   {
     name: "うまトマ語コンバーター",
     description: "うままううまママゔううう",
     href: "/umatoma",
+  },
+  {
+    name: "レスバとジェネレータ",
+    description: "AI に不毛なレスバトをしてもらう",
+    href: "/ai-dystopia",
   },
 ];
