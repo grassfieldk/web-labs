@@ -2,16 +2,10 @@
 
 import { Box, FileInput, Group, Stack, Switch, Text, Title } from "@mantine/core";
 import React, { useState } from "react";
-
-type Message = {
-  date?: string;
-  time?: string;
-  sender?: string;
-  content: string;
-};
+import { type LineMessage, parseLineChatHistory } from "@/services/line/parser";
 
 export default function ChatPage() {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<LineMessage[]>([]);
   const [partnerName, setPartnerName] = useState<string>("");
   const [showStamps, setShowStamps] = useState(true);
   const [showMedia, setShowMedia] = useState(true);
@@ -20,38 +14,15 @@ export default function ChatPage() {
     console.log(`Partner name changed to: "${partnerName}"`);
   }, [partnerName]);
 
-  const parseLineData = (text: string) => {
-    const lines = text.split("\n");
-    const header = lines.find((l) => l.includes("とのトーク履歴")) || "";
-    const m = header.match(/\[LINE\]?\s*(.+?)とのトーク履歴/);
-    if (m) setPartnerName(m[1].trim());
-
-    const result: Message[] = [];
-    let currentDate = "";
-
-    for (let raw of lines) {
-      raw = raw.trim();
-      if (!raw) continue;
-      if (/^\d{4}\/\d{2}\/\d{2}/.test(raw)) {
-        currentDate = raw;
-        result.push({ date: currentDate, content: "" });
-        continue;
-      }
-      const parts = raw.split("\t");
-      if (parts.length >= 3) {
-        const [time, sender, ...rest] = parts;
-        result.push({ date: currentDate, time, sender, content: rest.join("\t") });
-      }
-    }
-
-    setMessages(result);
-  };
-
   const onFileChange = (file: File | null) => {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
-      if (typeof reader.result === "string") parseLineData(reader.result);
+      if (typeof reader.result === "string") {
+        const { partnerName, messages } = parseLineChatHistory(reader.result);
+        setPartnerName(partnerName);
+        setMessages(messages);
+      }
     };
     reader.readAsText(file, "utf-8");
   };
@@ -96,11 +67,11 @@ export default function ChatPage() {
             }}
           >
             <Stack gap="xs">
-              {messages.map((msg, i) => {
+              {messages.map((msg) => {
                 if (!msg.time) {
                   return (
                     <Box
-                      key={i}
+                      key={msg.id}
                       style={{
                         textAlign: "center",
                         backgroundColor: "rgba(100, 100, 100, 0.5)",
@@ -124,7 +95,7 @@ export default function ChatPage() {
                 if (isMedia && !showMedia) return null;
 
                 return (
-                  <Group key={i} justify={isMe ? "flex-end" : "flex-start"} gap="xs">
+                  <Group key={msg.id} justify={isMe ? "flex-end" : "flex-start"} gap="xs">
                     <Box
                       style={{
                         maxWidth: "75%",
