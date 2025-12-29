@@ -2,6 +2,12 @@ import YtDlpWrap from "yt-dlp-wrap";
 
 const ytDlpWrap = new YtDlpWrap();
 
+export interface YtDlpMetadata {
+  id?: string;
+  title?: string;
+  [key: string]: unknown;
+}
+
 /**
  *  Executes yt-dlp with the provided URL and format.
  *  If format is not provided, it defaults to downloading the best available format.
@@ -36,7 +42,7 @@ export const getYtDlpMetadata = async (url: string) => {
  * @param ext
  * @returns
  */
-export const getFileName = (metadata: any, ext: string) => {
+export const getFileName = (metadata: YtDlpMetadata, ext: string) => {
   const videoId = metadata.id || "unknown_id";
   // Replace characters that are invalid in file names on Windows/Linux/Mac
   const title = metadata.title

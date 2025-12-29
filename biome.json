@@ -21,10 +21,6 @@
     "rules": {
       "style": {
         "useNodejsImportProtocol": "off"
-      },
-      "suspicious": {
-        "noExplicitAny": "off",
-        "noArrayIndexKey": "off"
       }
     }
   }
