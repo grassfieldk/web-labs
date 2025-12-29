@@ -38,8 +38,9 @@ export const getYtDlpMetadata = async (url: string) => {
  */
 export const getFileName = (metadata: any, ext: string) => {
   const videoId = metadata.id || "unknown_id";
+  // Replace characters that are invalid in file names on Windows/Linux/Mac
   const title = metadata.title
-    ? metadata.title.replace(/[^a-zA-Z0-9-_]/g, "_")
+    ? metadata.title.replace(/[\\/:*?"<>|]/g, "_")
     : "unknown_title";
 
   return `${videoId}_${title}.${ext}`;
