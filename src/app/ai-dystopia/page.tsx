@@ -13,10 +13,10 @@ import {
   Stack,
   Text,
   TextInput,
-  Title,
 } from "@mantine/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MdPlayArrow, MdSkipNext } from "react-icons/md";
+import PageBuilder from "@/components/layout/PageBuilder";
 
 type PersonalityKey = "smart" | "normal" | "monster";
 
@@ -184,151 +184,152 @@ Con: [Content]
   };
 
   return (
-    <Stack h="calc(100vh - 140px)" gap="md">
-      <Group justify="space-between" align="center">
-        <Title order={1}>レスバトジェネレーター</Title>
-      </Group>
-
-      <Modal
-        opened={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        title="設定"
-        size="lg"
-        centered
-      >
-        <Stack gap="sm">
-          <TextInput
-            label="討論トピック"
-            value={topic}
-            onChange={(e) => setTopic(e.currentTarget.value)}
-            placeholder="地球は平面である"
-          />
-          <Grid>
-            <Grid.Col span={6}>
-              <Select
-                label="賛成派の性格"
-                data={Object.entries(PERSONALITIES).map(([k, v]) => ({
-                  value: k,
-                  label: v.label,
-                }))}
-                value={proPersonality}
-                onChange={(v) => setProPersonality(v as PersonalityKey)}
-                allowDeselect={false}
-              />
-            </Grid.Col>
-            <Grid.Col span={6}>
-              <Select
-                label="反対派の性格"
-                data={Object.entries(PERSONALITIES).map(([k, v]) => ({
-                  value: k,
-                  label: v.label,
-                }))}
-                value={conPersonality}
-                onChange={(v) => setConPersonality(v as PersonalityKey)}
-                allowDeselect={false}
-              />
-            </Grid.Col>
-          </Grid>
-          <Grid>
-            <Grid.Col span={6}>
-              <TextInput
-                label="言語"
-                value={language}
-                onChange={(e) => setLanguage(e.currentTarget.value)}
-              />
-            </Grid.Col>
-            <Grid.Col span={6}>
-              <NumberInput
-                label="一人あたりの発言数"
-                value={messagesPerPerson}
-                onChange={(v) => setMessagesPerPerson(Math.max(1, Number(v) || 1))}
-                min={1}
-                max={20}
-              />
-            </Grid.Col>
-          </Grid>
-        </Stack>
-      </Modal>
-
-      <Grid>
-        <Grid.Col span={4}>
-          <Button fullWidth onClick={() => setIsSettingsOpen(true)} variant="default">
-            設定
-          </Button>
-        </Grid.Col>
-        <Grid.Col span={8}>
-          <Button
-            fullWidth
-            onClick={generateDebate}
-            disabled={isLoading || !topic}
-            leftSection={messages.length === 0 ? <MdPlayArrow /> : <MdSkipNext />}
-            color="blue"
-          >
-            {messages.length === 0 ? "レスバト開始！" : "もう一回！"}
-          </Button>
-        </Grid.Col>
-      </Grid>
-
-      <Paper
-        withBorder
-        p={0}
-        style={{
-          flex: 1,
-          overflow: "hidden",
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
-        <ScrollArea viewportRef={viewport} style={{ flex: 1 }} p="md">
-          <Stack gap="md">
-            {messages.length === 0 && (
-              <Text c="dimmed" ta="center" mt="xl">
-                熱いレスバトがここに表示されます
-              </Text>
-            )}
-            {messages.map((msg) => {
-              const isPro = msg.side === "pro";
-              return (
-                <Group
-                  key={msg.id}
-                  justify={isPro ? "flex-start" : "flex-end"}
-                  align="flex-start"
-                >
-                  <Stack gap={4} style={{ maxWidth: "80%" }}>
-                    <Group justify={isPro ? "flex-start" : "flex-end"} gap={8}>
-                      {isPro && (
-                        <Badge color="blue" variant="light">
-                          賛成
-                        </Badge>
-                      )}
-                      <Text size="xs" c="dimmed">
-                        {isPro
-                          ? PERSONALITIES[proPersonality].label
-                          : PERSONALITIES[conPersonality].label}
-                      </Text>
-                      {!isPro && (
-                        <Badge color="red" variant="light">
-                          反対
-                        </Badge>
-                      )}
-                    </Group>
-                    <Paper p="sm" radius="md" bg={isPro ? "blue.9" : "red.9"} c="white">
-                      <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
-                        {msg.content}
-                      </Text>
-                    </Paper>
-                  </Stack>
-                </Group>
-              );
-            })}
-            {isLoading && (
-              <Text size="sm" c="dimmed" ta="center">
-                議論を生成中...
-              </Text>
-            )}
+    <PageBuilder
+      title="レスバトジェネレーター"
+      description="AI が異なる人格で議論を展開するシミュレーター"
+    >
+      <Stack h="calc(100vh - 280px)" gap="md">
+        <Modal
+          opened={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          title="設定"
+          size="lg"
+          centered
+        >
+          <Stack gap="sm">
+            <TextInput
+              label="討論トピック"
+              value={topic}
+              onChange={(e) => setTopic(e.currentTarget.value)}
+              placeholder="地球は平面である"
+            />
+            <Grid>
+              <Grid.Col span={6}>
+                <Select
+                  label="賛成派の性格"
+                  data={Object.entries(PERSONALITIES).map(([k, v]) => ({
+                    value: k,
+                    label: v.label,
+                  }))}
+                  value={proPersonality}
+                  onChange={(v) => setProPersonality(v as PersonalityKey)}
+                  allowDeselect={false}
+                />
+              </Grid.Col>
+              <Grid.Col span={6}>
+                <Select
+                  label="反対派の性格"
+                  data={Object.entries(PERSONALITIES).map(([k, v]) => ({
+                    value: k,
+                    label: v.label,
+                  }))}
+                  value={conPersonality}
+                  onChange={(v) => setConPersonality(v as PersonalityKey)}
+                  allowDeselect={false}
+                />
+              </Grid.Col>
+            </Grid>
+            <Grid>
+              <Grid.Col span={6}>
+                <TextInput
+                  label="言語"
+                  value={language}
+                  onChange={(e) => setLanguage(e.currentTarget.value)}
+                />
+              </Grid.Col>
+              <Grid.Col span={6}>
+                <NumberInput
+                  label="一人あたりの発言数"
+                  value={messagesPerPerson}
+                  onChange={(v) => setMessagesPerPerson(Math.max(1, Number(v) || 1))}
+                  min={1}
+                  max={20}
+                />
+              </Grid.Col>
+            </Grid>
           </Stack>
-        </ScrollArea>
-      </Paper>
-    </Stack>
+        </Modal>
+
+        <Grid>
+          <Grid.Col span={4}>
+            <Button fullWidth onClick={() => setIsSettingsOpen(true)} variant="default">
+              設定
+            </Button>
+          </Grid.Col>
+          <Grid.Col span={8}>
+            <Button
+              fullWidth
+              onClick={generateDebate}
+              disabled={isLoading || !topic}
+              leftSection={messages.length === 0 ? <MdPlayArrow /> : <MdSkipNext />}
+              color="blue"
+            >
+              {messages.length === 0 ? "レスバト開始！" : "もう一回！"}
+            </Button>
+          </Grid.Col>
+        </Grid>
+
+        <Paper
+          withBorder
+          p={0}
+          style={{
+            flex: 1,
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <ScrollArea viewportRef={viewport} style={{ flex: 1 }} p="md">
+            <Stack gap="md">
+              {messages.length === 0 && (
+                <Text c="dimmed" ta="center" mt="xl">
+                  熱いレスバトがここに表示されます
+                </Text>
+              )}
+              {messages.map((msg) => {
+                const isPro = msg.side === "pro";
+                return (
+                  <Group
+                    key={msg.id}
+                    justify={isPro ? "flex-start" : "flex-end"}
+                    align="flex-start"
+                  >
+                    <Stack gap={4} style={{ maxWidth: "80%" }}>
+                      <Group justify={isPro ? "flex-start" : "flex-end"} gap={8}>
+                        {isPro && (
+                          <Badge color="blue" variant="light">
+                            賛成
+                          </Badge>
+                        )}
+                        <Text size="xs" c="dimmed">
+                          {isPro
+                            ? PERSONALITIES[proPersonality].label
+                            : PERSONALITIES[conPersonality].label}
+                        </Text>
+                        {!isPro && (
+                          <Badge color="red" variant="light">
+                            反対
+                          </Badge>
+                        )}
+                      </Group>
+                      <Paper p="sm" radius="md" bg={isPro ? "blue.9" : "red.9"} c="white">
+                        <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
+                          {msg.content}
+                        </Text>
+                      </Paper>
+                    </Stack>
+                  </Group>
+                );
+              })}
+              {isLoading && (
+                <Text size="sm" c="dimmed" ta="center">
+                  議論を生成中...
+                </Text>
+              )}
+            </Stack>
+          </ScrollArea>
+        </Paper>
+      </Stack>
+    </PageBuilder>
   );
 }

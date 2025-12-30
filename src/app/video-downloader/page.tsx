@@ -1,17 +1,9 @@
 "use client";
 
-import {
-  Alert,
-  Button,
-  Group,
-  Stack,
-  Table,
-  Text,
-  TextInput,
-  Title,
-} from "@mantine/core";
+import { Alert, Button, Group, Stack, Table, Text, TextInput } from "@mantine/core";
 import { useState } from "react";
 import { MdError } from "react-icons/md";
+import PageBuilder from "@/components/layout/PageBuilder";
 
 interface Format {
   id: string;
@@ -95,10 +87,10 @@ export default function VideoDownloader() {
   };
 
   return (
-    <Stack gap="lg">
-      <div>
-        <Title order={1}>Video Downloader</Title>
-        <Text c="dimmed" size="sm" mt="xs">
+    <PageBuilder
+      title="Video Downloader"
+      description={
+        <>
           Supported sites are based on yt-dlp. See:{" "}
           <a
             href="https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md"
@@ -108,69 +100,71 @@ export default function VideoDownloader() {
           >
             https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md
           </a>
-        </Text>
-      </div>
+        </>
+      }
+    >
+      <Stack gap="lg">
+        <TextInput
+          label="Video URL or ID"
+          placeholder="Enter video URL"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+        />
 
-      <TextInput
-        label="Video URL or ID"
-        placeholder="Enter video URL"
-        value={url}
-        onChange={(e) => setUrl(e.target.value)}
-      />
+        <Group grow>
+          <Button onClick={fetchMetadata} loading={isFetching}>
+            Fetch Metadata
+          </Button>
+          <Button onClick={downloadVideo} loading={isDownloading} color="green">
+            Download Video
+          </Button>
+        </Group>
 
-      <Group grow>
-        <Button onClick={fetchMetadata} loading={isFetching}>
-          Fetch Metadata
-        </Button>
-        <Button onClick={downloadVideo} loading={isDownloading} color="green">
-          Download Video
-        </Button>
-      </Group>
+        <TextInput
+          label="Format (optional)"
+          placeholder="Leave empty to use default format"
+          value={format || ""}
+          onChange={(e) => setFormat(e.target.value)}
+        />
 
-      <TextInput
-        label="Format (optional)"
-        placeholder="Leave empty to use default format"
-        value={format || ""}
-        onChange={(e) => setFormat(e.target.value)}
-      />
+        {error && (
+          <Alert icon={<MdError size={16} />} color="red" title="Error">
+            {error}
+          </Alert>
+        )}
 
-      {error && (
-        <Alert icon={<MdError size={16} />} color="red" title="Error">
-          {error}
-        </Alert>
-      )}
-
-      {formats.length > 0 && (
-        <div>
-          <Title order={2} size="h3" mb="md">
-            Available Formats
-          </Title>
-          <Table striped highlightOnHover>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>ID</Table.Th>
-                <Table.Th>Ext</Table.Th>
-                <Table.Th>Resolution</Table.Th>
-                <Table.Th>FPS</Table.Th>
-                <Table.Th>Size (MB)</Table.Th>
-                <Table.Th>Bitrate (kbps)</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {formats.map((fmt) => (
-                <Table.Tr key={fmt.id}>
-                  <Table.Td>{fmt.id}</Table.Td>
-                  <Table.Td>{fmt.ext}</Table.Td>
-                  <Table.Td>{fmt.resolution}</Table.Td>
-                  <Table.Td>{fmt.fps}</Table.Td>
-                  <Table.Td>{(fmt.size / (1024 * 1024)).toFixed(2)}</Table.Td>
-                  <Table.Td>{(fmt.bitrate / 1000).toFixed(2)}</Table.Td>
+        {formats.length > 0 && (
+          <div>
+            <Text fw={500} mb="md">
+              Available Formats
+            </Text>
+            <Table striped highlightOnHover>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>ID</Table.Th>
+                  <Table.Th>Ext</Table.Th>
+                  <Table.Th>Resolution</Table.Th>
+                  <Table.Th>FPS</Table.Th>
+                  <Table.Th>Size (MB)</Table.Th>
+                  <Table.Th>Bitrate (kbps)</Table.Th>
                 </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </div>
-      )}
-    </Stack>
+              </Table.Thead>
+              <Table.Tbody>
+                {formats.map((fmt) => (
+                  <Table.Tr key={fmt.id}>
+                    <Table.Td>{fmt.id}</Table.Td>
+                    <Table.Td>{fmt.ext}</Table.Td>
+                    <Table.Td>{fmt.resolution}</Table.Td>
+                    <Table.Td>{fmt.fps}</Table.Td>
+                    <Table.Td>{(fmt.size / (1024 * 1024)).toFixed(2)}</Table.Td>
+                    <Table.Td>{(fmt.bitrate / 1000).toFixed(2)}</Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </div>
+        )}
+      </Stack>
+    </PageBuilder>
   );
 }

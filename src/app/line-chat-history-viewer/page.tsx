@@ -1,7 +1,8 @@
 "use client";
 
-import { Box, FileInput, Group, Stack, Switch, Text, Title } from "@mantine/core";
+import { Box, FileInput, Group, Stack, Switch, Text } from "@mantine/core";
 import React, { useState } from "react";
+import PageBuilder from "@/components/layout/PageBuilder";
 import { type LineMessage, parseLineChatHistory } from "@/services/line/parser";
 
 export default function ChatPage() {
@@ -28,97 +29,100 @@ export default function ChatPage() {
   };
 
   return (
-    <Stack gap="lg">
-      <div>
-        <Title order={1}>
-          {partnerName ? `${partnerName} とのトーク履歴` : "LINE Chat History Viewer"}
-        </Title>
-      </div>
+    <PageBuilder
+      title={partnerName ? `${partnerName} とのトーク履歴` : "LINE Chat History Viewer"}
+      description="チャット履歴ファイルをアップロードして閲覧"
+    >
+      <Stack gap="lg">
+        <FileInput
+          label="チャット履歴ファイル"
+          placeholder="*.txt ファイルを選択"
+          accept=".txt"
+          onChange={onFileChange}
+        />
 
-      <FileInput
-        label="チャット履歴ファイル"
-        placeholder="*.txt ファイルを選択"
-        accept=".txt"
-        onChange={onFileChange}
-      />
+        {messages.length > 0 && (
+          <>
+            <Group>
+              <Switch
+                label="スタンプを表示"
+                checked={showStamps}
+                onChange={(e) => setShowStamps(e.currentTarget.checked)}
+              />
+              <Switch
+                label="メディアを表示"
+                checked={showMedia}
+                onChange={(e) => setShowMedia(e.currentTarget.checked)}
+              />
+            </Group>
 
-      {messages.length > 0 && (
-        <>
-          <Group>
-            <Switch
-              label="スタンプを表示"
-              checked={showStamps}
-              onChange={(e) => setShowStamps(e.currentTarget.checked)}
-            />
-            <Switch
-              label="メディアを表示"
-              checked={showMedia}
-              onChange={(e) => setShowMedia(e.currentTarget.checked)}
-            />
-          </Group>
+            <Box
+              style={{
+                backgroundColor: "#a8c5dd",
+                borderRadius: "8px",
+                padding: "16px",
+                maxHeight: "600px",
+                overflowY: "auto",
+              }}
+            >
+              <Stack gap="xs">
+                {messages.map((msg) => {
+                  if (!msg.time) {
+                    return (
+                      <Box
+                        key={msg.id}
+                        style={{
+                          textAlign: "center",
+                          backgroundColor: "rgba(100, 100, 100, 0.5)",
+                          borderRadius: "20px",
+                          padding: "8px 16px",
+                          fontSize: "12px",
+                          color: "#e0e0e0",
+                          margin: "8px 0",
+                        }}
+                      >
+                        {msg.date}
+                      </Box>
+                    );
+                  }
 
-          <Box
-            style={{
-              backgroundColor: "#a8c5dd",
-              borderRadius: "8px",
-              padding: "16px",
-              maxHeight: "600px",
-              overflowY: "auto",
-            }}
-          >
-            <Stack gap="xs">
-              {messages.map((msg) => {
-                if (!msg.time) {
+                  const isMe = msg.sender !== partnerName;
+                  const isStamp = msg.content === "[スタンプ]";
+                  const isMedia = msg.content === "[写真]" || msg.content === "[動画]";
+
+                  if (isStamp && !showStamps) return null;
+                  if (isMedia && !showMedia) return null;
+
                   return (
-                    <Box
+                    <Group
                       key={msg.id}
-                      style={{
-                        textAlign: "center",
-                        backgroundColor: "rgba(100, 100, 100, 0.5)",
-                        borderRadius: "20px",
-                        padding: "8px 16px",
-                        fontSize: "12px",
-                        color: "#e0e0e0",
-                        margin: "8px 0",
-                      }}
+                      justify={isMe ? "flex-end" : "flex-start"}
+                      gap="xs"
                     >
-                      {msg.date}
-                    </Box>
+                      <Box
+                        style={{
+                          maxWidth: "75%",
+                          backgroundColor: isMe ? "#a1e190" : "#e0e0e0",
+                          borderRadius: "12px",
+                          borderBottomRightRadius: isMe ? "0" : "12px",
+                          borderBottomLeftRadius: isMe ? "12px" : "0",
+                          padding: "8px 12px",
+                          wordBreak: "break-word",
+                        }}
+                      >
+                        <Text size="sm">{msg.content}</Text>
+                      </Box>
+                      <Text size="xs" c="dimmed">
+                        {msg.time}
+                      </Text>
+                    </Group>
                   );
-                }
-
-                const isMe = msg.sender !== partnerName;
-                const isStamp = msg.content === "[スタンプ]";
-                const isMedia = msg.content === "[写真]" || msg.content === "[動画]";
-
-                if (isStamp && !showStamps) return null;
-                if (isMedia && !showMedia) return null;
-
-                return (
-                  <Group key={msg.id} justify={isMe ? "flex-end" : "flex-start"} gap="xs">
-                    <Box
-                      style={{
-                        maxWidth: "75%",
-                        backgroundColor: isMe ? "#a1e190" : "#e0e0e0",
-                        borderRadius: "12px",
-                        borderBottomRightRadius: isMe ? "0" : "12px",
-                        borderBottomLeftRadius: isMe ? "12px" : "0",
-                        padding: "8px 12px",
-                        wordBreak: "break-word",
-                      }}
-                    >
-                      <Text size="sm">{msg.content}</Text>
-                    </Box>
-                    <Text size="xs" c="dimmed">
-                      {msg.time}
-                    </Text>
-                  </Group>
-                );
-              })}
-            </Stack>
-          </Box>
-        </>
-      )}
-    </Stack>
+                })}
+              </Stack>
+            </Box>
+          </>
+        )}
+      </Stack>
+    </PageBuilder>
   );
 }

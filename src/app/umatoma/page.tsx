@@ -1,8 +1,9 @@
 "use client";
 
-import { Alert, Button, Stack, Text, Textarea, Title } from "@mantine/core";
+import { Alert, Button, Stack, Text, Textarea } from "@mantine/core";
 import { useRef, useState } from "react";
 import { MdError } from "react-icons/md";
+import PageBuilder from "@/components/layout/PageBuilder";
 import { logMessage } from "@/utils/logger.client";
 import { halfToFullWidth } from "@/utils/stringConverter";
 
@@ -65,24 +66,25 @@ export default function VideoDownloaderPage() {
   };
 
   return (
-    <Stack gap="lg">
-      <div>
-        <Title order={1}>かなカナ/うまトマ語コンバーター</Title>
-        <Text
-          component="a"
-          href="https://www.matsuyafoods.co.jp/matsuya/menu/teishoku/tei_umatoma_hp_250603.html"
-          target="_blank"
-          c="blue"
-          size="sm"
-          style={{ display: "block", marginTop: "8px" }}
-        >
-          うまトマハンバーグ定食の注文はこちらから
-        </Text>
-        <Text size="xs" c="dimmed">
-          ※ ライス小盛がおすすめです
-        </Text>
-      </div>
-
+    <PageBuilder
+      title="かなカナ/うまトマ語コンバーター"
+      description={
+        <Stack gap={0}>
+          <Text
+            component="a"
+            href="https://www.matsuyafoods.co.jp/matsuya/menu/teishoku/tei_umatoma_hp_250603.html"
+            target="_blank"
+            c="blue"
+            size="sm"
+          >
+            うまトマハンバーグ定食の注文はこちらから
+          </Text>
+          <Text size="xs" c="dimmed">
+            ※ ライス小盛がおすすめです
+          </Text>
+        </Stack>
+      }
+    >
       <Stack gap="md">
         <div>
           <Text mb="xs">うまトマ語に変換したい文字列を入力してください</Text>
@@ -119,6 +121,6 @@ export default function VideoDownloaderPage() {
           </Alert>
         )}
       </Stack>
-    </Stack>
+    </PageBuilder>
   );
 }

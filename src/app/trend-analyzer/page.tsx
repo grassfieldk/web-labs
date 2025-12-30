@@ -9,11 +9,11 @@ import {
   Stack,
   Table,
   Text,
-  Title,
 } from "@mantine/core";
 import kuromoji from "kuromoji";
 import { useEffect, useMemo, useState } from "react";
 import { MdError } from "react-icons/md";
+import PageBuilder from "@/components/layout/PageBuilder";
 
 type ParsedMessage = {
   date: string; // YYYY/MM/DD
@@ -519,89 +519,97 @@ export default function TrendAnalyzerPage() {
   }, [parsedMessages, targetYear]);
 
   return (
-    <Stack gap="lg">
-      <div>
-        <Title order={1}>LINE 今年の流行語メーカー</Title>
-        <Text c="dimmed" size="sm" mt="xs">
-          トーク履歴（*.txt）をアップロードして、今年よく使われた言葉を集計します（処理はブラウザ内で完結します）。
-        </Text>
-        {tokenizerError && (
-          <Text c="red" size="sm" mt="xs">
-            {tokenizerError}
+    <PageBuilder
+      title="LINE 今年の流行語メーカー"
+      description={
+        <Stack gap={4}>
+          <Text size="sm">
+            トーク履歴（*.txt）をアップロードして、今年よく使われた言葉を集計します（処理はブラウザ内で完結します）。
           </Text>
-        )}
-      </div>
-
-      <FileInput
-        label="LINE トーク履歴ファイル"
-        placeholder="*.txt ファイルを選択"
-        accept=".txt"
-        onChange={onFileChange}
-      />
-
-      <Group>
-        <Button onClick={startAnalyze} disabled={!file || !tokenizer} loading={isParsing}>
-          解析開始
-        </Button>
-      </Group>
-
-      {error && (
-        <Alert icon={<MdError size={16} />} color="red" title="Error">
-          {error}
-        </Alert>
-      )}
-
-      {parsedMessages.length > 0 && (
-        <Group align="end">
-          <Select
-            label="対象年"
-            data={years.map((y) => ({ value: String(y), label: String(y) }))}
-            value={String(targetYear)}
-            onChange={(v) => {
-              if (!v) return;
-              const y = Number(v);
-              if (!Number.isNaN(y)) setTargetYear(y);
-            }}
-            w={180}
-          />
-          <Text c="dimmed" size="sm">
-            対象メッセージ数: {targetYearMessageCount}
-          </Text>
-        </Group>
-      )}
-
-      {resultRows.length > 0 && (
-        <div>
-          <Title order={2} size="h3" mb="md">
-            {targetYear} 年の流行語（フレーズ集計・暫定）
-          </Title>
-
-          <Table striped highlightOnHover>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>#</Table.Th>
-                <Table.Th>フレーズ</Table.Th>
-                <Table.Th>出現回数</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {resultRows.map((row, idx) => (
-                <Table.Tr key={row.phrase}>
-                  <Table.Td>{idx + 1}</Table.Td>
-                  <Table.Td>{row.phrase}</Table.Td>
-                  <Table.Td>{row.count}</Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-
-          {resultRows[0] && (
-            <Text mt="sm" size="sm">
-              今年の流行語（1位）: <b>{resultRows[0].phrase}</b>
+          {tokenizerError && (
+            <Text c="red" size="sm">
+              {tokenizerError}
             </Text>
           )}
-        </div>
-      )}
-    </Stack>
+        </Stack>
+      }
+    >
+      <Stack gap="lg">
+        <FileInput
+          label="LINE トーク履歴ファイル"
+          placeholder="*.txt ファイルを選択"
+          accept=".txt"
+          onChange={onFileChange}
+        />
+
+        <Group>
+          <Button
+            onClick={startAnalyze}
+            disabled={!file || !tokenizer}
+            loading={isParsing}
+          >
+            解析開始
+          </Button>
+        </Group>
+
+        {error && (
+          <Alert icon={<MdError size={16} />} color="red" title="Error">
+            {error}
+          </Alert>
+        )}
+
+        {parsedMessages.length > 0 && (
+          <Group align="end">
+            <Select
+              label="対象年"
+              data={years.map((y) => ({ value: String(y), label: String(y) }))}
+              value={String(targetYear)}
+              onChange={(v) => {
+                if (!v) return;
+                const y = Number(v);
+                if (!Number.isNaN(y)) setTargetYear(y);
+              }}
+              w={180}
+            />
+            <Text c="dimmed" size="sm">
+              対象メッセージ数: {targetYearMessageCount}
+            </Text>
+          </Group>
+        )}
+
+        {resultRows.length > 0 && (
+          <div>
+            <Text fw={500} mb="md">
+              {targetYear} 年の流行語（フレーズ集計・暫定）
+            </Text>
+
+            <Table striped highlightOnHover>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>#</Table.Th>
+                  <Table.Th>フレーズ</Table.Th>
+                  <Table.Th>出現回数</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {resultRows.map((row, idx) => (
+                  <Table.Tr key={row.phrase}>
+                    <Table.Td>{idx + 1}</Table.Td>
+                    <Table.Td>{row.phrase}</Table.Td>
+                    <Table.Td>{row.count}</Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+
+            {resultRows[0] && (
+              <Text mt="sm" size="sm">
+                今年の流行語（1位）: <b>{resultRows[0].phrase}</b>
+              </Text>
+            )}
+          </div>
+        )}
+      </Stack>
+    </PageBuilder>
   );
 }
