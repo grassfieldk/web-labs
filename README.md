@@ -1,5 +1,5 @@
 
-# Web Utils
+# Web Labs
 
 
 ## Requirements
@@ -28,7 +28,7 @@ npm run start
 ### Initial Startup
 
 ```bash
-pm2 start npm --name "web-utils" -- run start
+pm2 start npm --name "web-labs" -- run start
 ```
 
 ### Enable pm2 Auto-Start
@@ -42,11 +42,11 @@ pm2 save
 
 ```bash
 # Restart
-pm2 restart web-utils
+pm2 restart web-labs
 # Stop
-pm2 stop web-utils
+pm2 stop web-labs
 # Start
-pm2 start web-utils
+pm2 start web-labs
 ```
 
 ### Change Port or Environment Variables
@@ -54,7 +54,7 @@ pm2 start web-utils
 If you want to change the port or other environment variables, delete the process and re-register:
 
 ```bash
-pm2 delete web-utils
-PORT=NEW_PORT pm2 start npm --name "web-utils" -- run start
+pm2 delete web-labs
+PORT=NEW_PORT pm2 start npm --name "web-labs" -- run start
 pm2 save
 ```

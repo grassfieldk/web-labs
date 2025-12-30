@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
-  title: Web Utils API
+  title: Web Labs API
   version: 1.0.0
-  description: Web Utils API Reference
+  description: API Reference
 paths:
   /api/hololist:
     get:

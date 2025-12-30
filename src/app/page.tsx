@@ -9,7 +9,7 @@ export default function Home() {
     <Stack gap="xl">
       <div>
         <Title order={1} mb="sm">
-          Web Utils
+          Web Labs
         </Title>
         <Text c="dimmed">
           便利で実用的なツールをまとめたユーティリティプラットフォーム

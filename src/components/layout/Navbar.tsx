@@ -45,7 +45,7 @@ const Navbar = () => {
           fontWeight: 600,
         }}
       >
-        Web Utils
+        Web Labs
       </Link>
 
       <Group gap="xs">
