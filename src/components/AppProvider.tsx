@@ -7,12 +7,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   <MantineProvider
     defaultColorScheme="light"
     theme={{
-      fontSizes: {
-        xs: "14px",
-        sm: "16px",
-        md: "16px",
-        lg: "18px",
-        xl: "20px",
+      components: {
+        Input: {
+          styles: {
+            input: {
+              fontSize: "16px",
+            },
+          },
+        },
+        Textarea: {
+          styles: {
+            input: {
+              fontSize: "16px",
+            },
+          },
+        },
+        Select: {
+          styles: {
+            input: {
+              fontSize: "16px",
+            },
+          },
+        },
+        NumberInput: {
+          styles: {
+            input: {
+              fontSize: "16px",
+            },
+          },
+        },
       },
     }}
   >
