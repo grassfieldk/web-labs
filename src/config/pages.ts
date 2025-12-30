@@ -16,11 +16,6 @@ export const tools: Tool[] = [
     href: "/line-chat-history-viewer",
   },
   {
-    name: "Video Downloader",
-    description: "YouTube などの動画をダウンロード",
-    href: "/video-downloader",
-  },
-  {
     name: "うまトマ語コンバーター",
     description: "うままううまママゔううう",
     href: "/umatoma",

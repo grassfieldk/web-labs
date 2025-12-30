@@ -43,8 +43,5 @@ logs/**/*.log
 *.tsbuildinfo
 next-env.d.ts
 
-# downloads
-/public/yt-dlp/downloads/*
-
 # working directory
 /work/
