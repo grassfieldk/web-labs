@@ -39,11 +39,44 @@ const CANDIDATE_LIMIT = 600;
 const EMOJI_OR_SYMBOL_MIN_COUNT = 3;
 const FULL_COUNT_MAX_LEN_NO_CONJUNCTION = 30;
 
+// Common stop words to exclude from trending phrases
+// biome-ignore format: Preserve manual formatting to maintain category comments and alignment
+const STOP_WORDS = new Set([
+  "これ", "それ", "あれ", "どれ",
+  "この", "その", "あの", "どの",
+  "いや", "まあ", "たしか", "それで", "実は",
+  "えっ", "あっ", "うわ", "うわあ", "ああ", "おう", "よう",
+  "はい", "いいえ", "そう"
+]);
+
 function normalizeKeyText(text: string) {
   // Drop Unicode "format" chars (variation selectors, ZWJ/ZWNJ, etc)
   // so visually identical emojis don't appear as separate phrases.
   // Avoid NFKC here to keep non-emoji phrases' counts/rankings stable.
-  return text.replace(/\p{Cf}/gu, "");
+  let normalized = text.replace(/\p{Cf}/gu, "");
+
+  // Normalize repeated characters: 3+ consecutive identical characters → 2
+  // "きちゃあああああああ" → "きちゃああ"
+  // "！！！！！" → "！！"
+  normalized = normalized.replace(/(\S)\1{2,}/gu, "$1$1");
+
+  // Normalize repeated 2-character sequences: 3+ consecutive identical sequences → 2
+  // "！？！？！？" → "！？！？"
+  normalized = normalized.replace(/(\S{2})\1{2,}/gu, "$1$1");
+
+  return normalized;
+}
+
+function truncateRepeatedPhrases(text: string) {
+  // Cap repeated characters at 5
+  // "きちゃああああああ" → "きちゃあああああ"
+  let truncated = text.replace(/(\S)\1{4,}/gu, "$1$1$1$1$1");
+
+  // Cap repeated 2-char sequences at 5
+  // "！？！？！？！？！？！？" → "！？！？！？！？！？"
+  truncated = truncated.replace(/(\S{2})\1{4,}/gu, "$1$1$1$1$1");
+
+  return truncated;
 }
 
 function countEmojiOrSymbolChars(text: string) {
@@ -58,12 +91,14 @@ function hasConjunctionOrParticle(tokens: kuromoji.Token[]) {
   // - 助詞: が/は/に/を/て/で/けど...
   // - 助動詞: だ/です/ます/た...
   // - 記号: 読点/句点/括弧など（kuromoji上は多くが"記号"）
+  //   ただし、感嘆符・疑問符・長音・チルダ（！？!?‼⁉ー〜~）は文末の強調や伸ばし棒として
+  //   フレーズの一部とみなすため、これらのみで構成される記号トークンは「接続的な記号」とはみなさない。
   return tokens.some(
     (t) =>
       t.pos.startsWith("接続詞") ||
       t.pos.startsWith("助詞") ||
       t.pos.startsWith("助動詞") ||
-      t.pos.startsWith("記号")
+      (t.pos.startsWith("記号") && !/^[！？!?‼⁉ー〜~]+$/.test(t.surface_form))
   );
 }
 
@@ -79,15 +114,21 @@ function isContentWord(pos: string): boolean {
   );
 }
 
-function shouldBuildPhraseWith(pos: string): boolean {
+function shouldBuildPhraseWith(token: kuromoji.Token): boolean {
   // Only include content words (nouns, verbs, adjectives, adverbs)
   // Exclude particles and auxiliary verbs to avoid generic short phrases
-  return isContentWord(pos);
+  // Also include exclamation/question marks, prolonged sounds, and tildes as they add meaning/nuance.
+  if (isContentWord(token.pos)) return true;
+  if (token.pos.startsWith("記号") && /^[！？!?‼⁉ー〜~]+$/.test(token.surface_form))
+    return true;
+  return false;
 }
 
 function cleanMessageContent(content: string) {
   return (
     content
+      // LINE stamp emoji (e.g., "(emoji)")
+      .replace(/\(emoji\)/g, " ")
       // LINE export placeholders
       .replace(/\[(スタンプ|写真|動画|アルバム)\]/g, " ")
       // URLs
@@ -113,6 +154,13 @@ function shouldExcludeMessage(content: string) {
 
 function isMeaningfulPhrase(phrase: string) {
   if (phrase.length < MIN_PHRASE_LEN) return false;
+  // Exclude stop words
+  if (STOP_WORDS.has(phrase)) return false;
+  // Exclude single hiragana or katakana characters
+  if (phrase.length === 1 && /[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(phrase))
+    return false;
+  // Exclude grass (w, www, wwww, etc.)
+  if (/^w+$/i.test(phrase)) return false;
   // Require at least some CJK signal to avoid random ASCII fragments.
   if (!/[\p{Script=Han}\p{Script=Katakana}]/u.test(phrase)) return false;
   return true;
@@ -144,11 +192,17 @@ function analyzeBuzzwords(
     if (countedKeysInMessage.has(key)) return;
     countedKeysInMessage.add(key);
 
+    const displayPhrase = truncateRepeatedPhrases(phrase);
+
     const existing = counts.get(key);
     if (existing) {
       existing.count += 1;
+      // Keep the longer phrase version (original, not normalized)
+      if (displayPhrase.length > existing.phrase.length) {
+        existing.phrase = displayPhrase;
+      }
     } else {
-      counts.set(key, { phrase, tokens, count: 1 });
+      counts.set(key, { phrase: displayPhrase, tokens, count: 1 });
     }
   };
 
@@ -166,19 +220,26 @@ function analyzeBuzzwords(
     const normalizedWhole = normalizeKeyText(cleaned);
 
     // If message is short (≤10 chars) OR contains many emojis/symbols/punctuation,
-    // count the whole message as a phrase.
+    // count the whole message as a phrase (if not a stop word).
     if (
       cleaned.length <= SHORT_MESSAGE_MAX_LEN ||
       countEmojiOrSymbolChars(normalizedWhole) >= EMOJI_OR_SYMBOL_MIN_COUNT
     ) {
-      const key = `m:${normalizedWhole}`;
-      tryCount({
-        key,
-        // Use normalized value for display too, so duplicates like "💦" vs "💦︎" collapse.
-        phrase: normalizedWhole,
-        tokens: [normalizedWhole],
-        countedKeysInMessage,
-      });
+      // Skip if it's a stop word or single hiragana/katakana or grass
+      const isSingleHiraganaOrKatakana =
+        normalizedWhole.length === 1 &&
+        /[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(normalizedWhole);
+      const isGrass = /^w+$/i.test(normalizedWhole);
+      if (!STOP_WORDS.has(normalizedWhole) && !isSingleHiraganaOrKatakana && !isGrass) {
+        const key = `m:${normalizedWhole}`;
+        tryCount({
+          key,
+          // Use original cleaned text (not normalized) for display, so longer versions are preserved
+          phrase: cleaned,
+          tokens: [normalizedWhole],
+          countedKeysInMessage,
+        });
+      }
       continue;
     }
 
@@ -186,26 +247,34 @@ function analyzeBuzzwords(
     const tokens = tokenizer.tokenize(cleaned);
 
     // If there's no connective signal (conjunction/particle/auxverb/symbol),
-    // treat short-ish messages as a single phrase.
+    // treat short-ish messages as a single phrase (if not a stop word).
     // Guarded by length to avoid counting full long sentences.
     if (
       cleaned.length <= FULL_COUNT_MAX_LEN_NO_CONJUNCTION &&
       !hasConjunctionOrParticle(tokens)
     ) {
-      const key = `m:${normalizedWhole}`;
-      tryCount({
-        key,
-        phrase: normalizedWhole,
-        tokens: [normalizedWhole],
-        countedKeysInMessage,
-      });
+      // Skip if it's a stop word or single hiragana/katakana or grass
+      const isSingleHiraganaOrKatakana =
+        normalizedWhole.length === 1 &&
+        /[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(normalizedWhole);
+      const isGrass = /^w+$/i.test(normalizedWhole);
+      if (!STOP_WORDS.has(normalizedWhole) && !isSingleHiraganaOrKatakana && !isGrass) {
+        const key = `m:${normalizedWhole}`;
+        tryCount({
+          key,
+          // Use original cleaned text (not normalized) for display, so longer versions are preserved
+          phrase: cleaned,
+          tokens: [normalizedWhole],
+          countedKeysInMessage,
+        });
+      }
       continue;
     }
     const segments: Array<{ text: string; pos: string }[]> = [];
     let current: { text: string; pos: string }[] = [];
 
     for (const token of tokens) {
-      if (!shouldBuildPhraseWith(token.pos)) {
+      if (!shouldBuildPhraseWith(token)) {
         if (current.length > 0) segments.push(current);
         current = [];
         continue;
@@ -248,12 +317,12 @@ function analyzeBuzzwords(
       }
 
       candidates.sort((a, b) => {
-        // Prefer noun-only phrases first.
-        if (a.isNounOnly !== b.isNounOnly) return a.isNounOnly ? -1 : 1;
         // Prefer longer token spans to reduce sub-phrase duplicates.
         if (b.tokens.length !== a.tokens.length) return b.tokens.length - a.tokens.length;
         // Then prefer longer surface length.
-        return b.phrase.length - a.phrase.length;
+        if (b.phrase.length !== a.phrase.length) return b.phrase.length - a.phrase.length;
+        // Finally prefer noun-only phrases if lengths are equal.
+        return a.isNounOnly === b.isNounOnly ? 0 : a.isNounOnly ? -1 : 1;
       });
 
       const used = new Array<boolean>(segment.length).fill(false);
