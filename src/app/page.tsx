@@ -11,9 +11,7 @@ export default function Home() {
         <Title order={1} mb="sm">
           Web Labs
         </Title>
-        <Text c="dimmed">
-          便利で実用的なツールをまとめたユーティリティプラットフォーム
-        </Text>
+        <Text c="dimmed">思いついたものをつくってまとめるサイト</Text>
       </div>
 
       <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="md">

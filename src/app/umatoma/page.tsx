@@ -4,6 +4,7 @@ import { Alert, Button, Stack, Text, Textarea } from "@mantine/core";
 import { useRef, useState } from "react";
 import { MdError } from "react-icons/md";
 import PageBuilder from "@/components/layout/PageBuilder";
+import { Caption } from "@/components/ui/Basics";
 import { logMessage } from "@/utils/logger.client";
 import { halfToFullWidth } from "@/utils/stringConverter";
 
@@ -67,8 +68,10 @@ export default function VideoDownloaderPage() {
 
   return (
     <PageBuilder
-      title="かなカナ/うまトマ語コンバーター"
-      description={
+      title="うまトマ語翻訳機"
+      description="ひらがな・カタカナをうまトマ語に翻訳します"
+    >
+      <Stack gap="md">
         <Stack gap={0}>
           <Text
             component="a"
@@ -79,13 +82,8 @@ export default function VideoDownloaderPage() {
           >
             うまトマハンバーグ定食の注文はこちらから
           </Text>
-          <Text size="xs" c="dimmed">
-            ※ ライス小盛がおすすめです
-          </Text>
+          <Caption>※ ライス小盛がおすすめです</Caption>
         </Stack>
-      }
-    >
-      <Stack gap="md">
         <div>
           <Text mb="xs">うまトマ語に変換したい文字列を入力してください</Text>
           <Textarea

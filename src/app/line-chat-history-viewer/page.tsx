@@ -29,10 +29,7 @@ export default function ChatPage() {
   };
 
   return (
-    <PageBuilder
-      title={partnerName ? `${partnerName} とのトーク履歴` : "LINE Chat History Viewer"}
-      description="チャット履歴ファイルをアップロードして閲覧"
-    >
+    <PageBuilder title="LINE チャット履歴ビューア">
       <Stack gap="lg">
         <FileInput
           label="チャット履歴ファイル"
@@ -45,12 +42,12 @@ export default function ChatPage() {
           <>
             <Group>
               <Switch
-                label="スタンプを表示"
+                label="スタンプ表示"
                 checked={showStamps}
                 onChange={(e) => setShowStamps(e.currentTarget.checked)}
               />
               <Switch
-                label="メディアを表示"
+                label="メディア表示"
                 checked={showMedia}
                 onChange={(e) => setShowMedia(e.currentTarget.checked)}
               />

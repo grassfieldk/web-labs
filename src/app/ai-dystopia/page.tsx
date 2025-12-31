@@ -33,7 +33,7 @@ const PERSONALITIES: Record<PersonalityKey, { label: string; prompt: string }> =
   monster: {
     label: "バケモノ",
     prompt:
-      "読解力ゼロで言語化能力も乏しく短い文をつなぎ合わせてしか喋れず、偏った知識・固定概念に囚われているバケモノ。感嘆符（！など）は絵文字（❗️など）で代用、国名の後ろに国旗を使用するなど絵文字を多用し、すぐ煽る。",
+      "読解力ゼロで言語化能力も乏しく短い文をつなぎ合わせてしか喋れず、偏った知識・固定概念に囚われているバケモノ。絵文字を多用し、すぐ煽る。",
   },
 };
 
@@ -186,9 +186,9 @@ Con: [Content]
   return (
     <PageBuilder
       title="レスバトジェネレーター"
-      description="AI が異なる人格で議論を展開するシミュレーター"
+      description="現代技術の叡智に不毛なレスバトをしてもらおう"
     >
-      <Stack h="calc(100vh - 280px)" gap="md">
+      <Stack h="calc(100vh - 220px)" gap="md">
         <Modal
           opened={isSettingsOpen}
           onClose={() => setIsSettingsOpen(false)}
@@ -323,7 +323,7 @@ Con: [Content]
               })}
               {isLoading && (
                 <Text size="sm" c="dimmed" ta="center">
-                  議論を生成中...
+                  レスバトを生成中...
                 </Text>
               )}
             </Stack>

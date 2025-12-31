@@ -2,6 +2,7 @@
 
 import {
   Alert,
+  Box,
   Button,
   FileInput,
   Group,
@@ -14,6 +15,7 @@ import kuromoji from "kuromoji";
 import { useEffect, useMemo, useState } from "react";
 import { MdError } from "react-icons/md";
 import PageBuilder from "@/components/layout/PageBuilder";
+import { Caption } from "@/components/ui/Basics";
 
 type ParsedMessage = {
   date: string; // YYYY/MM/DD
@@ -519,30 +521,16 @@ export default function TrendAnalyzerPage() {
   }, [parsedMessages, targetYear]);
 
   return (
-    <PageBuilder
-      title="LINE 今年の流行語メーカー"
-      description={
-        <Stack gap={4}>
-          <Text size="sm">
-            トーク履歴（*.txt）をアップロードして、今年よく使われた言葉を集計します（処理はブラウザ内で完結します）。
-          </Text>
-          {tokenizerError && (
-            <Text c="red" size="sm">
-              {tokenizerError}
-            </Text>
-          )}
-        </Stack>
-      }
-    >
+    <PageBuilder title="LINE 流行語対象" description="今年流行ったフレーズは？">
       <Stack gap="lg">
-        <FileInput
-          label="LINE トーク履歴ファイル"
-          placeholder="*.txt ファイルを選択"
-          accept=".txt"
-          onChange={onFileChange}
-        />
-
-        <Group>
+        <Stack gap="sm">
+          <FileInput
+            label="履歴ファイル"
+            placeholder="*.txt ファイルを選択"
+            description="※ ファイルはサーバへ送信されません"
+            accept=".txt"
+            onChange={onFileChange}
+          />
           <Button
             onClick={startAnalyze}
             disabled={!file || !tokenizer}
@@ -550,7 +538,7 @@ export default function TrendAnalyzerPage() {
           >
             解析開始
           </Button>
-        </Group>
+        </Stack>
 
         {error && (
           <Alert icon={<MdError size={16} />} color="red" title="Error">
@@ -561,53 +549,40 @@ export default function TrendAnalyzerPage() {
         {parsedMessages.length > 0 && (
           <Group align="end">
             <Select
-              label="対象年"
-              data={years.map((y) => ({ value: String(y), label: String(y) }))}
+              data={years.map((y) => ({ value: String(y), label: `${String(y)}年` }))}
               value={String(targetYear)}
               onChange={(v) => {
                 if (!v) return;
                 const y = Number(v);
                 if (!Number.isNaN(y)) setTargetYear(y);
               }}
-              w={180}
+              w={100}
             />
-            <Text c="dimmed" size="sm">
-              対象メッセージ数: {targetYearMessageCount}
-            </Text>
+            {resultRows[0] && (
+              <Caption>集計対象メッセージ: {targetYearMessageCount} 件</Caption>
+            )}
           </Group>
         )}
 
         {resultRows.length > 0 && (
-          <div>
-            <Text fw={500} mb="md">
-              {targetYear} 年の流行語（フレーズ集計・暫定）
-            </Text>
-
-            <Table striped highlightOnHover>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>#</Table.Th>
-                  <Table.Th>フレーズ</Table.Th>
-                  <Table.Th>出現回数</Table.Th>
+          <Table striped highlightOnHover>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>#</Table.Th>
+                <Table.Th>フレーズ</Table.Th>
+                <Table.Th>出現回数</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {resultRows.map((row, idx) => (
+                <Table.Tr key={row.phrase}>
+                  <Table.Td>{idx + 1}</Table.Td>
+                  <Table.Td>{row.phrase}</Table.Td>
+                  <Table.Td>{row.count}</Table.Td>
                 </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {resultRows.map((row, idx) => (
-                  <Table.Tr key={row.phrase}>
-                    <Table.Td>{idx + 1}</Table.Td>
-                    <Table.Td>{row.phrase}</Table.Td>
-                    <Table.Td>{row.count}</Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-
-            {resultRows[0] && (
-              <Text mt="sm" size="sm">
-                今年の流行語（1位）: <b>{resultRows[0].phrase}</b>
-              </Text>
-            )}
-          </div>
+              ))}
+            </Table.Tbody>
+          </Table>
         )}
       </Stack>
     </PageBuilder>
