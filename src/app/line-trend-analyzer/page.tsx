@@ -16,13 +16,14 @@ import { useEffect, useMemo, useState } from "react";
 import { MdError } from "react-icons/md";
 import PageBuilder from "@/components/layout/PageBuilder";
 import { Caption } from "@/components/ui/Basics";
+import {
+  type LineMessage,
+  parseLineChatHistory,
+  yearFromDate,
+  yearMonthFromDate,
+} from "@/services/line/parser";
 
-type ParsedMessage = {
-  date: string; // YYYY/MM/DD
-  time?: string;
-  sender?: string;
-  content: string;
-};
+type ParsedMessage = LineMessage;
 
 type TrendRow = {
   phrase: string;
@@ -84,16 +85,6 @@ function shouldBuildPhraseWith(pos: string): boolean {
   return isContentWord(pos);
 }
 
-function normalizeNewlines(text: string) {
-  return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-}
-
-function yearFromDate(date: string): number | null {
-  const m = date.match(/^(\d{4})\/(\d{2})\/(\d{2})/);
-  if (!m) return null;
-  return Number(m[1]);
-}
-
 function cleanMessageContent(content: string) {
   return (
     content
@@ -125,60 +116,6 @@ function isMeaningfulPhrase(phrase: string) {
   // Require at least some CJK signal to avoid random ASCII fragments.
   if (!/[\p{Script=Han}\p{Script=Katakana}]/u.test(phrase)) return false;
   return true;
-}
-
-function parseLineChatExport(text: string) {
-  const normalized = normalizeNewlines(text);
-  const lines = normalized.split("\n");
-
-  const header = lines.find((l) => l.includes("とのトーク履歴")) || "";
-  const headerMatch = header.match(/\[LINE\]?\s*(.+?)とのトーク履歴/);
-  const partnerName = headerMatch?.[1]?.trim() || "";
-
-  const messages: ParsedMessage[] = [];
-  const years = new Set<number>();
-
-  let currentDate = "";
-  let lastMessage: ParsedMessage | null = null;
-
-  for (const rawLine of lines) {
-    const line = rawLine.trimEnd();
-    if (!line.trim()) continue;
-
-    if (/^\d{4}\/\d{2}\/\d{2}/.test(line.trim())) {
-      currentDate = line.trim().slice(0, 10);
-      const year = yearFromDate(currentDate);
-      if (year != null) years.add(year);
-      lastMessage = null;
-      continue;
-    }
-
-    const parts = line.split("\t");
-    if (parts.length >= 3 && currentDate) {
-      const [time, sender, ...rest] = parts;
-      const content = rest.join("\t");
-      const msg: ParsedMessage = {
-        date: currentDate,
-        time,
-        sender,
-        content,
-      };
-      messages.push(msg);
-      lastMessage = msg;
-      continue;
-    }
-
-    // Multi-line message continuation
-    if (lastMessage) {
-      lastMessage.content = `${lastMessage.content}\n${line.trim()}`;
-    }
-  }
-
-  return {
-    partnerName,
-    messages,
-    years: Array.from(years).sort((a, b) => b - a),
-  };
 }
 
 function analyzeBuzzwords(
@@ -216,7 +153,7 @@ function analyzeBuzzwords(
   };
 
   for (const msg of messages) {
-    const year = yearFromDate(msg.date);
+    const year = msg.date ? yearFromDate(msg.date) : null;
     if (year !== targetYear) continue;
 
     if (shouldExcludeMessage(msg.content)) continue;
@@ -428,8 +365,9 @@ export default function TrendAnalyzerPage() {
 
   const [file, setFile] = useState<File | null>(null);
   const [isParsing, setIsParsing] = useState(false);
-  const [parsedMessages, setParsedMessages] = useState<ParsedMessage[]>([]);
-  const [years, setYears] = useState<number[]>([]);
+  const [history, setHistory] = useState<
+    Array<{ year: number; month: number; messages: LineMessage[] }>
+  >([]);
   const [targetYear, setTargetYear] = useState<number>(() => new Date().getFullYear());
   const [error, setError] = useState<string>("");
 
@@ -466,8 +404,7 @@ export default function TrendAnalyzerPage() {
 
     // Selecting a file does not start parsing automatically.
     // Reset current results so the user clearly sees they need to start.
-    setParsedMessages([]);
-    setYears([]);
+    setHistory([]);
   };
 
   const startAnalyze = async () => {
@@ -479,27 +416,29 @@ export default function TrendAnalyzerPage() {
 
     setError("");
     setIsParsing(true);
-    setParsedMessages([]);
-    setYears([]);
+    setHistory([]);
 
     try {
       const text = await file.text();
-      const { messages, years: parsedYears } = parseLineChatExport(text);
+      const { history: parsedHistory } = parseLineChatHistory(text);
 
-      if (messages.length === 0) {
+      if (parsedHistory.length === 0) {
         throw new Error(
           "チャット履歴を解析できませんでした。LINEのトーク履歴（*.txt）を指定してください。"
         );
       }
 
-      setParsedMessages(messages);
-      setYears(parsedYears);
+      setHistory(parsedHistory);
 
       const currentYear = new Date().getFullYear();
-      const nextTarget = parsedYears.includes(currentYear)
-        ? currentYear
-        : (parsedYears[0] ?? currentYear);
-      setTargetYear(nextTarget);
+      const hasCurrentYear = parsedHistory.some((h) => h.year === currentYear);
+
+      if (hasCurrentYear) {
+        setTargetYear(currentYear);
+      } else {
+        const latest = parsedHistory[0];
+        setTargetYear(latest.year);
+      }
     } catch (e) {
       const message = e instanceof Error ? e.message : "Unknown error";
       setError(message);
@@ -509,19 +448,22 @@ export default function TrendAnalyzerPage() {
   };
 
   const resultRows = useMemo(() => {
-    if (parsedMessages.length === 0 || !tokenizer) return [];
-    return analyzeBuzzwords(parsedMessages, targetYear, tokenizer);
-  }, [parsedMessages, targetYear, tokenizer]);
+    if (history.length === 0 || !tokenizer) return [];
+    const yearMessages = history
+      .filter((h) => h.year === targetYear)
+      .flatMap((h) => h.messages);
+    if (yearMessages.length === 0) return [];
+    return analyzeBuzzwords(yearMessages, targetYear, tokenizer);
+  }, [history, targetYear, tokenizer]);
 
   const targetYearMessageCount = useMemo(() => {
-    const count = parsedMessages.filter(
-      (m) => yearFromDate(m.date) === targetYear
-    ).length;
-    return count;
-  }, [parsedMessages, targetYear]);
+    return history
+      .filter((h) => h.year === targetYear)
+      .reduce((sum, h) => sum + h.messages.length, 0);
+  }, [history, targetYear]);
 
   return (
-    <PageBuilder title="LINE 流行語対象" description="今年流行ったフレーズは？">
+    <PageBuilder title="LINE 流行語大賞" description="今年流行ったフレーズは？">
       <Stack gap="lg">
         <Stack gap="sm">
           <FileInput
@@ -546,15 +488,20 @@ export default function TrendAnalyzerPage() {
           </Alert>
         )}
 
-        {parsedMessages.length > 0 && (
+        {history.length > 0 && (
           <Group align="end">
             <Select
-              data={years.map((y) => ({ value: String(y), label: `${String(y)}年` }))}
+              label="年"
+              data={Array.from(new Set(history.map((h) => h.year)))
+                .sort((a, b) => b - a)
+                .map((y) => ({ value: String(y), label: `${String(y)}年` }))}
               value={String(targetYear)}
               onChange={(v) => {
                 if (!v) return;
                 const y = Number(v);
-                if (!Number.isNaN(y)) setTargetYear(y);
+                if (!Number.isNaN(y)) {
+                  setTargetYear(y);
+                }
               }}
               w={100}
             />

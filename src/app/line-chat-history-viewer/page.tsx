@@ -6,10 +6,13 @@ import PageBuilder from "@/components/layout/PageBuilder";
 import { type LineMessage, parseLineChatHistory } from "@/services/line/parser";
 
 export default function ChatPage() {
-  const [messages, setMessages] = useState<LineMessage[]>([]);
+  const [history, setHistory] = useState<
+    Array<{ year: number; month: number; messages: LineMessage[] }>
+  >([]);
   const [partnerName, setPartnerName] = useState<string>("");
   const [showStamps, setShowStamps] = useState(true);
   const [showMedia, setShowMedia] = useState(true);
+  const [allMessages, setAllMessages] = useState<LineMessage[]>([]);
 
   React.useEffect(() => {
     console.log(`Partner name changed to: "${partnerName}"`);
@@ -20,9 +23,14 @@ export default function ChatPage() {
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === "string") {
-        const { partnerName, messages } = parseLineChatHistory(reader.result);
+        const { partnerName, history: parsedHistory } = parseLineChatHistory(
+          reader.result
+        );
         setPartnerName(partnerName);
-        setMessages(messages);
+        setHistory(parsedHistory);
+        // Flatten all messages from history for display
+        const messages = parsedHistory.flatMap((h) => h.messages);
+        setAllMessages(messages);
       }
     };
     reader.readAsText(file, "utf-8");
@@ -38,7 +46,7 @@ export default function ChatPage() {
           onChange={onFileChange}
         />
 
-        {messages.length > 0 && (
+        {allMessages.length > 0 && (
           <>
             <Group>
               <Switch
@@ -63,7 +71,7 @@ export default function ChatPage() {
               }}
             >
               <Stack gap="xs">
-                {messages.map((msg) => {
+                {allMessages.map((msg) => {
                   if (!msg.time) {
                     return (
                       <Box
