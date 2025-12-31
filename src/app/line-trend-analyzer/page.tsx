@@ -1,16 +1,6 @@
 "use client";
 
-import {
-  Alert,
-  Box,
-  Button,
-  FileInput,
-  Group,
-  Select,
-  Stack,
-  Table,
-  Text,
-} from "@mantine/core";
+import { Alert, Button, FileInput, Group, Select, Stack, Table } from "@mantine/core";
 import kuromoji from "kuromoji";
 import { useEffect, useMemo, useState } from "react";
 import { MdError } from "react-icons/md";
@@ -20,7 +10,6 @@ import {
   type LineMessage,
   parseLineChatHistory,
   yearFromDate,
-  yearMonthFromDate,
 } from "@/services/line/parser";
 
 type ParsedMessage = LineMessage;
@@ -152,205 +141,32 @@ function shouldExcludeMessage(content: string) {
   return false;
 }
 
-function isMeaningfulPhrase(phrase: string) {
+function shouldSkipNormalizedPhrase(normalized: string): boolean {
+  if (STOP_WORDS.has(normalized)) return true;
+  // Single hiragana/katakana
+  if (
+    normalized.length === 1 &&
+    /[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(normalized)
+  ) {
+    return true;
+  }
+  // Grass (w, www)
+  if (/^w+$/i.test(normalized)) return true;
+
+  return false;
+}
+
+function isMeaningfulNGram(phrase: string, normalized: string) {
   if (phrase.length < MIN_PHRASE_LEN) return false;
-  // Exclude stop words
-  if (STOP_WORDS.has(phrase)) return false;
-  // Exclude single hiragana or katakana characters
-  if (phrase.length === 1 && /[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(phrase))
-    return false;
-  // Exclude grass (w, www, wwww, etc.)
-  if (/^w+$/i.test(phrase)) return false;
+  if (shouldSkipNormalizedPhrase(normalized)) return false;
   // Require at least some CJK signal to avoid random ASCII fragments.
   if (!/[\p{Script=Han}\p{Script=Katakana}]/u.test(phrase)) return false;
   return true;
 }
 
-function analyzeBuzzwords(
-  messages: ParsedMessage[],
-  targetYear: number,
-  tokenizer: kuromoji.Tokenizer
+function getTopPhrases(
+  counts: Map<string, { phrase: string; tokens: string[]; count: number }>
 ) {
-  const counts = new Map<
-    string,
-    {
-      phrase: string;
-      tokens: string[];
-      count: number;
-    }
-  >();
-
-  const tryCount = (params: {
-    key: string;
-    phrase: string;
-    tokens: string[];
-    countedKeysInMessage: Set<string>;
-  }) => {
-    const { key, phrase, tokens, countedKeysInMessage } = params;
-
-    // Per-message dedupe
-    if (countedKeysInMessage.has(key)) return;
-    countedKeysInMessage.add(key);
-
-    const displayPhrase = truncateRepeatedPhrases(phrase);
-
-    const existing = counts.get(key);
-    if (existing) {
-      existing.count += 1;
-      // Keep the longer phrase version (original, not normalized)
-      if (displayPhrase.length > existing.phrase.length) {
-        existing.phrase = displayPhrase;
-      }
-    } else {
-      counts.set(key, { phrase: displayPhrase, tokens, count: 1 });
-    }
-  };
-
-  for (const msg of messages) {
-    const year = msg.date ? yearFromDate(msg.date) : null;
-    if (year !== targetYear) continue;
-
-    if (shouldExcludeMessage(msg.content)) continue;
-
-    const cleaned = cleanMessageContent(msg.content);
-    if (!cleaned) continue;
-
-    const countedKeysInMessage = new Set<string>();
-
-    const normalizedWhole = normalizeKeyText(cleaned);
-
-    // If message is short (≤10 chars) OR contains many emojis/symbols/punctuation,
-    // count the whole message as a phrase (if not a stop word).
-    if (
-      cleaned.length <= SHORT_MESSAGE_MAX_LEN ||
-      countEmojiOrSymbolChars(normalizedWhole) >= EMOJI_OR_SYMBOL_MIN_COUNT
-    ) {
-      // Skip if it's a stop word or single hiragana/katakana or grass
-      const isSingleHiraganaOrKatakana =
-        normalizedWhole.length === 1 &&
-        /[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(normalizedWhole);
-      const isGrass = /^w+$/i.test(normalizedWhole);
-      if (!STOP_WORDS.has(normalizedWhole) && !isSingleHiraganaOrKatakana && !isGrass) {
-        const key = `m:${normalizedWhole}`;
-        tryCount({
-          key,
-          // Use original cleaned text (not normalized) for display, so longer versions are preserved
-          phrase: cleaned,
-          tokens: [normalizedWhole],
-          countedKeysInMessage,
-        });
-      }
-      continue;
-    }
-
-    // Use kuromoji for morphological analysis (with POS tagging)
-    const tokens = tokenizer.tokenize(cleaned);
-
-    // If there's no connective signal (conjunction/particle/auxverb/symbol),
-    // treat short-ish messages as a single phrase (if not a stop word).
-    // Guarded by length to avoid counting full long sentences.
-    if (
-      cleaned.length <= FULL_COUNT_MAX_LEN_NO_CONJUNCTION &&
-      !hasConjunctionOrParticle(tokens)
-    ) {
-      // Skip if it's a stop word or single hiragana/katakana or grass
-      const isSingleHiraganaOrKatakana =
-        normalizedWhole.length === 1 &&
-        /[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(normalizedWhole);
-      const isGrass = /^w+$/i.test(normalizedWhole);
-      if (!STOP_WORDS.has(normalizedWhole) && !isSingleHiraganaOrKatakana && !isGrass) {
-        const key = `m:${normalizedWhole}`;
-        tryCount({
-          key,
-          // Use original cleaned text (not normalized) for display, so longer versions are preserved
-          phrase: cleaned,
-          tokens: [normalizedWhole],
-          countedKeysInMessage,
-        });
-      }
-      continue;
-    }
-    const segments: Array<{ text: string; pos: string }[]> = [];
-    let current: { text: string; pos: string }[] = [];
-
-    for (const token of tokens) {
-      if (!shouldBuildPhraseWith(token)) {
-        if (current.length > 0) segments.push(current);
-        current = [];
-        continue;
-      }
-      current.push({ text: token.surface_form, pos: token.pos });
-    }
-    if (current.length > 0) segments.push(current);
-
-    for (const segment of segments) {
-      const maxN = Math.min(MAX_NGRAM, segment.length);
-
-      // Avoid extracting multiple overlapping phrases from the same region.
-      // Generate candidates, then greedily pick non-overlapping ones.
-      type SegmentCandidate = {
-        start: number;
-        end: number;
-        phrase: string;
-        tokens: string[];
-        isNounOnly: boolean;
-      };
-
-      const candidates: SegmentCandidate[] = [];
-
-      for (let i = 0; i < segment.length; i++) {
-        for (let n = 2; n <= maxN && i + n <= segment.length; n++) {
-          const phraseItems = segment.slice(i, i + n);
-          const phraseTokens = phraseItems.map((p) => p.text);
-          const phrase = phraseTokens.join("");
-
-          if (!isMeaningfulPhrase(phrase)) continue;
-
-          candidates.push({
-            start: i,
-            end: i + n,
-            phrase,
-            tokens: phraseTokens,
-            isNounOnly: phraseItems.every((p) => p.pos.startsWith("名詞")),
-          });
-        }
-      }
-
-      candidates.sort((a, b) => {
-        // Prefer longer token spans to reduce sub-phrase duplicates.
-        if (b.tokens.length !== a.tokens.length) return b.tokens.length - a.tokens.length;
-        // Then prefer longer surface length.
-        if (b.phrase.length !== a.phrase.length) return b.phrase.length - a.phrase.length;
-        // Finally prefer noun-only phrases if lengths are equal.
-        return a.isNounOnly === b.isNounOnly ? 0 : a.isNounOnly ? -1 : 1;
-      });
-
-      const used = new Array<boolean>(segment.length).fill(false);
-
-      for (const cand of candidates) {
-        let overlaps = false;
-        for (let k = cand.start; k < cand.end; k++) {
-          if (used[k]) {
-            overlaps = true;
-            break;
-          }
-        }
-        if (overlaps) continue;
-
-        // Key by token sequence to avoid merging different tokenizations.
-        const key = `t:${cand.tokens.join("\u0001")}`;
-        tryCount({
-          key,
-          phrase: cand.phrase,
-          tokens: cand.tokens,
-          countedKeysInMessage,
-        });
-
-        for (let k = cand.start; k < cand.end; k++) used[k] = true;
-      }
-    }
-  }
-
   // Performance: keep limited top candidates via min-heap
   type CountItem = {
     phrase: string;
@@ -426,6 +242,166 @@ function analyzeBuzzwords(
   }
 
   return kept;
+}
+
+function analyzeBuzzwords(
+  messages: ParsedMessage[],
+  targetYear: number,
+  tokenizer: kuromoji.Tokenizer
+) {
+  const counts = new Map<
+    string,
+    {
+      phrase: string;
+      tokens: string[];
+      count: number;
+    }
+  >();
+
+  const addCount = (
+    text: string,
+    tokens: string[],
+    countedKeysInMessage: Set<string>
+  ) => {
+    const normalized = normalizeKeyText(text);
+
+    if (shouldSkipNormalizedPhrase(normalized)) return;
+
+    // Unified key generation: use normalized text to group variations
+    const key = `p:${normalized}`;
+
+    // Per-message dedupe
+    if (countedKeysInMessage.has(key)) return;
+    countedKeysInMessage.add(key);
+
+    const displayPhrase = truncateRepeatedPhrases(text);
+
+    const existing = counts.get(key);
+    if (existing) {
+      existing.count += 1;
+      // Keep the longer phrase version (original, not normalized)
+      if (displayPhrase.length > existing.phrase.length) {
+        existing.phrase = displayPhrase;
+      }
+    } else {
+      counts.set(key, { phrase: displayPhrase, tokens, count: 1 });
+    }
+  };
+
+  for (const msg of messages) {
+    const year = msg.date ? yearFromDate(msg.date) : null;
+    if (year !== targetYear) continue;
+
+    if (shouldExcludeMessage(msg.content)) continue;
+
+    const cleaned = cleanMessageContent(msg.content);
+    if (!cleaned) continue;
+
+    const countedKeysInMessage = new Set<string>();
+    const normalizedWhole = normalizeKeyText(cleaned);
+
+    // 1. Short message OR Emoji/Symbol spam
+    // If message is short (≤10 chars) OR contains many emojis/symbols/punctuation,
+    // count the whole message as a phrase.
+    if (
+      cleaned.length <= SHORT_MESSAGE_MAX_LEN ||
+      countEmojiOrSymbolChars(normalizedWhole) >= EMOJI_OR_SYMBOL_MIN_COUNT
+    ) {
+      addCount(cleaned, [cleaned], countedKeysInMessage);
+      continue;
+    }
+
+    // Use kuromoji for morphological analysis (with POS tagging)
+    const tokens = tokenizer.tokenize(cleaned);
+
+    // 2. Short-ish message with no conjunctions
+    // If there's no connective signal (conjunction/particle/auxverb/symbol),
+    // treat short-ish messages as a single phrase.
+    if (
+      cleaned.length <= FULL_COUNT_MAX_LEN_NO_CONJUNCTION &&
+      !hasConjunctionOrParticle(tokens)
+    ) {
+      addCount(cleaned, [cleaned], countedKeysInMessage);
+      continue;
+    }
+
+    // 3. N-gram extraction
+    const segments: Array<{ text: string; pos: string }[]> = [];
+    let current: { text: string; pos: string }[] = [];
+
+    for (const token of tokens) {
+      if (!shouldBuildPhraseWith(token)) {
+        if (current.length > 0) segments.push(current);
+        current = [];
+        continue;
+      }
+      current.push({ text: token.surface_form, pos: token.pos });
+    }
+    if (current.length > 0) segments.push(current);
+
+    for (const segment of segments) {
+      const maxN = Math.min(MAX_NGRAM, segment.length);
+
+      // Avoid extracting multiple overlapping phrases from the same region.
+      // Generate candidates, then greedily pick non-overlapping ones.
+      type SegmentCandidate = {
+        start: number;
+        end: number;
+        phrase: string;
+        tokens: string[];
+        isNounOnly: boolean;
+      };
+
+      const candidates: SegmentCandidate[] = [];
+
+      for (let i = 0; i < segment.length; i++) {
+        for (let n = 2; n <= maxN && i + n <= segment.length; n++) {
+          const phraseItems = segment.slice(i, i + n);
+          const phraseTokens = phraseItems.map((p) => p.text);
+          const phrase = phraseTokens.join("");
+          const normalizedPhrase = normalizeKeyText(phrase);
+
+          if (!isMeaningfulNGram(phrase, normalizedPhrase)) continue;
+
+          candidates.push({
+            start: i,
+            end: i + n,
+            phrase,
+            tokens: phraseTokens,
+            isNounOnly: phraseItems.every((p) => p.pos.startsWith("名詞")),
+          });
+        }
+      }
+
+      candidates.sort((a, b) => {
+        // Prefer longer token spans to reduce sub-phrase duplicates.
+        if (b.tokens.length !== a.tokens.length) return b.tokens.length - a.tokens.length;
+        // Then prefer longer surface length.
+        if (b.phrase.length !== a.phrase.length) return b.phrase.length - a.phrase.length;
+        // Finally prefer noun-only phrases if lengths are equal.
+        return a.isNounOnly === b.isNounOnly ? 0 : a.isNounOnly ? -1 : 1;
+      });
+
+      const used = new Array<boolean>(segment.length).fill(false);
+
+      for (const cand of candidates) {
+        let overlaps = false;
+        for (let k = cand.start; k < cand.end; k++) {
+          if (used[k]) {
+            overlaps = true;
+            break;
+          }
+        }
+        if (overlaps) continue;
+
+        addCount(cand.phrase, cand.tokens, countedKeysInMessage);
+
+        for (let k = cand.start; k < cand.end; k++) used[k] = true;
+      }
+    }
+  }
+
+  return getTopPhrases(counts);
 }
 
 export default function TrendAnalyzerPage() {
@@ -550,6 +526,12 @@ export default function TrendAnalyzerPage() {
             解析開始
           </Button>
         </Stack>
+
+        {tokenizerError && (
+          <Alert icon={<MdError size={16} />} color="red" title="Tokenizer Error">
+            {tokenizerError}
+          </Alert>
+        )}
 
         {error && (
           <Alert icon={<MdError size={16} />} color="red" title="Error">
