@@ -31,13 +31,25 @@ type TrendRow = {
   ids: string[];
 };
 
-const SHORT_MESSAGE_MAX_LEN = 10;
-const MIN_PHRASE_LEN = 5;
-const MAX_NGRAM = 8;
+// メッセージ全体をフレーズとして数える最大文字数
+// これ以下の短いメッセージは全体を１フレーズとする
+const SHORT_MESSAGE_MAX_LEN = 5;
+// N-gram 抽出時の最小フレーズ文字数
+// これより短いフレーズは N-gram 抽出を行わない
+const MIN_PHRASE_LEN = 3;
+// N-gram 抽出時の最大単語数
+// この数まで連続フレーズを抽出
+const MAX_NGRAM = 5;
+// ランキング表示件数
 const TOP_N = 30;
+// パフォーマンス最適化用）ヒープ保持する候補フレーズ上限
+// これを超える候補は最も頻度の低いものから削除
 const CANDIDATE_LIMIT = 600;
-
+// メッセージ全体をフレーズとして数えるための絵文字/記号の最小数
+// これ以上含む場合、メッセージ全体を１フレーズとする
 const EMOJI_OR_SYMBOL_MIN_COUNT = 3;
+// 接続詞のない短めメッセージをフレーズとして数える最大文字数
+// 接続詞がなくこの文字数以下の場合、メッセージ全体を１フレーズとする
 const FULL_COUNT_MAX_LEN_NO_CONJUNCTION = 30;
 
 // Common stop words to exclude from trending phrases
@@ -168,8 +180,22 @@ function shouldSkipNormalizedPhrase(normalized: string): boolean {
   return false;
 }
 
-function isMeaningfulNGram(phrase: string, normalized: string) {
-  if (phrase.length < MIN_PHRASE_LEN) return false;
+function isMeaningfulNGram(
+  phrase: string,
+  normalized: string,
+  tokenCount: number,
+  items: Array<{ text: string; pos: string }>
+) {
+  // Single words (n=1): noun only, 2+ characters to avoid common words like "気", "今"
+  // Multiple words (n>=2): MIN_PHRASE_LEN characters AND must start with a noun
+  if (tokenCount === 1) {
+    if (phrase.length < 2) return false;
+    if (!items[0].pos.startsWith("名詞")) return false;
+  } else {
+    if (phrase.length < MIN_PHRASE_LEN) return false;
+    // Require first token to be a noun to filter out verb conjugations like "思って"
+    if (!items[0].pos.startsWith("名詞")) return false;
+  }
   if (shouldSkipNormalizedPhrase(normalized)) return false;
   // Require at least some CJK signal to avoid random ASCII fragments.
   if (!/[\p{Script=Han}\p{Script=Katakana}]/u.test(phrase)) return false;
@@ -372,13 +398,13 @@ function analyzeBuzzwords(
       const candidates: SegmentCandidate[] = [];
 
       for (let i = 0; i < segment.length; i++) {
-        for (let n = 2; n <= maxN && i + n <= segment.length; n++) {
+        for (let n = 1; n <= maxN && i + n <= segment.length; n++) {
           const phraseItems = segment.slice(i, i + n);
           const phraseTokens = phraseItems.map((p) => p.text);
           const phrase = phraseTokens.join("");
           const normalizedPhrase = normalizeKeyText(phrase);
 
-          if (!isMeaningfulNGram(phrase, normalizedPhrase)) continue;
+          if (!isMeaningfulNGram(phrase, normalizedPhrase, n, phraseItems)) continue;
 
           candidates.push({
             start: i,
@@ -679,7 +705,7 @@ export default function TrendAnalyzerPage() {
               <Button onClick={() => setSelectedDate(null)} variant="default">
                 戻る
               </Button>
-            <LineChatViewer messages={viewerMessages} partnerName={partnerName} />
+              <LineChatViewer messages={viewerMessages} partnerName={partnerName} />
             </Stack>
           )}
         </Stack>
