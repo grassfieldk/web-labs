@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { LLMFactory } from "@/services/llm/factory";
+import { createLLMProvider } from "@/services/llm/factory";
 import type { ChatMessage } from "@/services/llm/types";
 import { log } from "@/utils/logger.server";
 
@@ -13,7 +13,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Messages array is required" }, { status: 400 });
     }
 
-    const llmProvider = LLMFactory.create(provider, model);
+    const llmProvider = createLLMProvider(provider, model);
     const stream = await llmProvider.generateStream(messages as ChatMessage[]);
 
     return new NextResponse(stream, {
