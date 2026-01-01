@@ -33,7 +33,6 @@ const Navbar = () => {
           isMounted && colorScheme === "dark"
             ? "var(--mantine-color-dark-8)"
             : "var(--mantine-color-gray-0)",
-        zIndex: 1000,
       }}
     >
       <Link

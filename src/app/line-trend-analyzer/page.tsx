@@ -1,11 +1,22 @@
 "use client";
 
-import { Alert, Button, FileInput, Group, Select, Stack, Table } from "@mantine/core";
+import {
+  Alert,
+  Button,
+  FileInput,
+  Group,
+  Modal,
+  Select,
+  SimpleGrid,
+  Stack,
+  Table,
+} from "@mantine/core";
 import kuromoji from "kuromoji";
 import { useEffect, useMemo, useState } from "react";
 import { MdError } from "react-icons/md";
 import PageBuilder from "@/components/layout/PageBuilder";
 import { Caption } from "@/components/ui/Basics";
+import { LineChatViewer } from "@/components/ui/line";
 import {
   type LineMessage,
   parseLineChatHistory,
@@ -17,6 +28,7 @@ type ParsedMessage = LineMessage;
 type TrendRow = {
   phrase: string;
   count: number;
+  ids: string[];
 };
 
 const SHORT_MESSAGE_MAX_LEN = 10;
@@ -172,6 +184,7 @@ function getTopPhrases(
     phrase: string;
     tokens: string[];
     count: number;
+    ids: string[];
   };
 
   const isWorse = (a: CountItem, b: CountItem) => {
@@ -215,14 +228,14 @@ function getTopPhrases(
 
   for (const item of counts.values()) {
     if (heap.length < CANDIDATE_LIMIT) {
-      heap.push(item);
+      heap.push(item as CountItem);
       heapUp(heap.length - 1);
       continue;
     }
 
     // Replace the worst item if the new item is better.
-    if (isWorse(heap[0], item)) {
-      heap[0] = item;
+    if (isWorse(heap[0], item as CountItem)) {
+      heap[0] = item as CountItem;
       heapDown(0);
     }
   }
@@ -236,7 +249,7 @@ function getTopPhrases(
   const kept: TrendRow[] = [];
 
   for (const item of candidates) {
-    kept.push({ phrase: item.phrase, count: item.count });
+    kept.push({ phrase: item.phrase, count: item.count, ids: item.ids });
 
     if (kept.length >= TOP_N) break;
   }
@@ -255,13 +268,15 @@ function analyzeBuzzwords(
       phrase: string;
       tokens: string[];
       count: number;
+      ids: string[];
     }
   >();
 
   const addCount = (
     text: string,
     tokens: string[],
-    countedKeysInMessage: Set<string>
+    countedKeysInMessage: Set<string>,
+    messageId: string
   ) => {
     const normalized = normalizeKeyText(text);
 
@@ -283,8 +298,9 @@ function analyzeBuzzwords(
       if (displayPhrase.length > existing.phrase.length) {
         existing.phrase = displayPhrase;
       }
+      existing.ids.push(messageId);
     } else {
-      counts.set(key, { phrase: displayPhrase, tokens, count: 1 });
+      counts.set(key, { phrase: displayPhrase, tokens, count: 1, ids: [messageId] });
     }
   };
 
@@ -298,6 +314,7 @@ function analyzeBuzzwords(
     if (!cleaned) continue;
 
     const countedKeysInMessage = new Set<string>();
+
     const normalizedWhole = normalizeKeyText(cleaned);
 
     // 1. Short message OR Emoji/Symbol spam
@@ -307,7 +324,7 @@ function analyzeBuzzwords(
       cleaned.length <= SHORT_MESSAGE_MAX_LEN ||
       countEmojiOrSymbolChars(normalizedWhole) >= EMOJI_OR_SYMBOL_MIN_COUNT
     ) {
-      addCount(cleaned, [cleaned], countedKeysInMessage);
+      addCount(cleaned, [cleaned], countedKeysInMessage, msg.id);
       continue;
     }
 
@@ -321,7 +338,7 @@ function analyzeBuzzwords(
       cleaned.length <= FULL_COUNT_MAX_LEN_NO_CONJUNCTION &&
       !hasConjunctionOrParticle(tokens)
     ) {
-      addCount(cleaned, [cleaned], countedKeysInMessage);
+      addCount(cleaned, [cleaned], countedKeysInMessage, msg.id);
       continue;
     }
 
@@ -394,7 +411,7 @@ function analyzeBuzzwords(
         }
         if (overlaps) continue;
 
-        addCount(cand.phrase, cand.tokens, countedKeysInMessage);
+        addCount(cand.phrase, cand.tokens, countedKeysInMessage, msg.id);
 
         for (let k = cand.start; k < cand.end; k++) used[k] = true;
       }
@@ -415,6 +432,12 @@ export default function TrendAnalyzerPage() {
   >([]);
   const [targetYear, setTargetYear] = useState<number>(() => new Date().getFullYear());
   const [error, setError] = useState<string>("");
+
+  const [partnerName, setPartnerName] = useState<string>("");
+
+  const [selectedRow, setSelectedRow] = useState<TrendRow | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [viewerMessages, setViewerMessages] = useState<LineMessage[]>([]);
 
   // Initialize kuromoji tokenizer on component mount
   useEffect(() => {
@@ -465,7 +488,7 @@ export default function TrendAnalyzerPage() {
 
     try {
       const text = await file.text();
-      const { history: parsedHistory } = parseLineChatHistory(text);
+      const { partnerName, history: parsedHistory } = parseLineChatHistory(text);
 
       if (parsedHistory.length === 0) {
         throw new Error(
@@ -473,6 +496,7 @@ export default function TrendAnalyzerPage() {
         );
       }
 
+      setPartnerName(partnerName);
       setHistory(parsedHistory);
 
       const currentYear = new Date().getFullYear();
@@ -506,6 +530,35 @@ export default function TrendAnalyzerPage() {
       .filter((h) => h.year === targetYear)
       .reduce((sum, h) => sum + h.messages.length, 0);
   }, [history, targetYear]);
+
+  const allMessages = useMemo(() => {
+    return history.flatMap((h) => h.messages);
+  }, [history]);
+
+  useEffect(() => {
+    if (selectedDate && selectedRow && allMessages.length > 0) {
+      const sortedMessages = allMessages.sort((a, b) => {
+        const aDateTime =
+          a.date && a.time ? new Date(`${a.date} ${a.time}`).getTime() : 0;
+        const bDateTime =
+          b.date && b.time ? new Date(`${b.date} ${b.time}`).getTime() : 0;
+        return aDateTime - bDateTime;
+      });
+      // Find the first id of the phrase on the selected date
+      const firstId = selectedRow.ids.find((id) => {
+        const msg = allMessages.find((m) => m.id === id);
+        return msg?.date === selectedDate;
+      });
+      if (firstId) {
+        const index = sortedMessages.findIndex((msg) => msg.id === firstId);
+        if (index !== -1) {
+          const start = Math.max(0, index - 2);
+          const end = Math.min(sortedMessages.length, index + 3);
+          setViewerMessages(sortedMessages.slice(start, end));
+        }
+      }
+    }
+  }, [selectedDate, selectedRow, allMessages]);
 
   return (
     <PageBuilder title="LINE 流行語大賞" description="今年流行ったフレーズは？">
@@ -566,14 +619,18 @@ export default function TrendAnalyzerPage() {
           <Table striped highlightOnHover>
             <Table.Thead>
               <Table.Tr>
-                <Table.Th>#</Table.Th>
+                <Table.Th w="4em">#</Table.Th>
                 <Table.Th>フレーズ</Table.Th>
-                <Table.Th>出現回数</Table.Th>
+                <Table.Th w="8em">出現回数</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
               {resultRows.map((row, idx) => (
-                <Table.Tr key={row.phrase}>
+                <Table.Tr
+                  key={row.phrase}
+                  onClick={() => setSelectedRow(row)}
+                  style={{ cursor: "pointer" }}
+                >
                   <Table.Td>{idx + 1}</Table.Td>
                   <Table.Td>{row.phrase}</Table.Td>
                   <Table.Td>{row.count}</Table.Td>
@@ -583,6 +640,50 @@ export default function TrendAnalyzerPage() {
           </Table>
         )}
       </Stack>
+
+      <Modal
+        opened={!!selectedRow}
+        onClose={() => {
+          setSelectedRow(null);
+          setSelectedDate(null);
+          setViewerMessages([]);
+        }}
+        title={selectedDate ? "メッセージ履歴" : "メッセージ履歴"}
+        size="xl"
+      >
+        <Stack>
+          {selectedRow && !selectedDate && (
+            <SimpleGrid cols={2}>
+              {[
+                ...new Set(
+                  selectedRow.ids
+                    .map((id) => {
+                      const msg = allMessages.find((m) => m.id === id);
+                      return msg?.date || "";
+                    })
+                    .filter((d) => d)
+                ),
+              ].map((date) => (
+                <Button
+                  key={date}
+                  onClick={() => setSelectedDate(date)}
+                  variant="default"
+                >
+                  {date}
+                </Button>
+              ))}
+            </SimpleGrid>
+          )}
+          {selectedDate && viewerMessages.length > 0 && (
+            <Stack>
+              <Button onClick={() => setSelectedDate(null)} variant="default">
+                戻る
+              </Button>
+            <LineChatViewer messages={viewerMessages} partnerName={partnerName} />
+            </Stack>
+          )}
+        </Stack>
+      </Modal>
     </PageBuilder>
   );
 }

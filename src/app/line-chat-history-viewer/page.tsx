@@ -1,18 +1,19 @@
 "use client";
 
-import { Box, FileInput, Group, Stack, Switch, Text } from "@mantine/core";
+import { FileInput, Group, Select, Stack, Switch } from "@mantine/core";
 import React, { useState } from "react";
 import PageBuilder from "@/components/layout/PageBuilder";
+import { LineChatViewer } from "@/components/ui/line";
 import { type LineMessage, parseLineChatHistory } from "@/services/line/parser";
 
 export default function ChatPage() {
-  const [history, setHistory] = useState<
-    Array<{ year: number; month: number; messages: LineMessage[] }>
-  >([]);
   const [partnerName, setPartnerName] = useState<string>("");
   const [showStamps, setShowStamps] = useState(true);
   const [showMedia, setShowMedia] = useState(true);
-  const [allMessages, setAllMessages] = useState<LineMessage[]>([]);
+  const [history, setHistory] = useState<
+    Array<{ year: number; month: number; messages: LineMessage[] }>
+  >([]);
+  const [selectedYearMonth, setSelectedYearMonth] = useState<string>("");
 
   React.useEffect(() => {
     console.log(`Partner name changed to: "${partnerName}"`);
@@ -28,13 +29,20 @@ export default function ChatPage() {
         );
         setPartnerName(partnerName);
         setHistory(parsedHistory);
-        // Flatten all messages from history for display
-        const messages = parsedHistory.flatMap((h) => h.messages);
-        setAllMessages(messages);
+        // Select the first year-month by default
+        if (parsedHistory.length > 0) {
+          const { year, month } = parsedHistory[0];
+          setSelectedYearMonth(`${year}-${String(month).padStart(2, "0")}`);
+        }
       }
     };
     reader.readAsText(file, "utf-8");
   };
+
+  const displayMessages =
+    history.find(
+      (h) => selectedYearMonth === `${h.year}-${String(h.month).padStart(2, "0")}`
+    )?.messages || [];
 
   return (
     <PageBuilder title="LINE チャット履歴ビューア">
@@ -46,9 +54,19 @@ export default function ChatPage() {
           onChange={onFileChange}
         />
 
-        {allMessages.length > 0 && (
+        {history.length > 0 && (
           <>
             <Group>
+              <Select
+                data={history.map((h) => ({
+                  value: `${h.year}-${String(h.month).padStart(2, "0")}`,
+                  label: `${h.year}年${String(h.month).padStart(2, "0")}月`,
+                }))}
+                value={selectedYearMonth}
+                onChange={(v) => v && setSelectedYearMonth(v)}
+                searchable
+                w={150}
+              />
               <Switch
                 label="スタンプ表示"
                 checked={showStamps}
@@ -61,70 +79,14 @@ export default function ChatPage() {
               />
             </Group>
 
-            <Box
-              style={{
-                backgroundColor: "#a8c5dd",
-                borderRadius: "8px",
-                padding: "16px",
-                maxHeight: "600px",
-                overflowY: "auto",
-              }}
-            >
-              <Stack gap="xs">
-                {allMessages.map((msg) => {
-                  if (!msg.time) {
-                    return (
-                      <Box
-                        key={msg.id}
-                        style={{
-                          textAlign: "center",
-                          backgroundColor: "rgba(100, 100, 100, 0.5)",
-                          borderRadius: "20px",
-                          padding: "8px 16px",
-                          fontSize: "12px",
-                          color: "#e0e0e0",
-                          margin: "8px 0",
-                        }}
-                      >
-                        {msg.date}
-                      </Box>
-                    );
-                  }
-
-                  const isMe = msg.sender !== partnerName;
-                  const isStamp = msg.content === "[スタンプ]";
-                  const isMedia = msg.content === "[写真]" || msg.content === "[動画]";
-
-                  if (isStamp && !showStamps) return null;
-                  if (isMedia && !showMedia) return null;
-
-                  return (
-                    <Group
-                      key={msg.id}
-                      justify={isMe ? "flex-end" : "flex-start"}
-                      gap="xs"
-                    >
-                      <Box
-                        style={{
-                          maxWidth: "75%",
-                          backgroundColor: isMe ? "#a1e190" : "#e0e0e0",
-                          borderRadius: "12px",
-                          borderBottomRightRadius: isMe ? "0" : "12px",
-                          borderBottomLeftRadius: isMe ? "12px" : "0",
-                          padding: "8px 12px",
-                          wordBreak: "break-word",
-                        }}
-                      >
-                        <Text size="sm">{msg.content}</Text>
-                      </Box>
-                      <Text size="xs" c="dimmed">
-                        {msg.time}
-                      </Text>
-                    </Group>
-                  );
-                })}
-              </Stack>
-            </Box>
+            {displayMessages.length > 0 && (
+              <LineChatViewer
+                messages={displayMessages}
+                showStamps={showStamps}
+                showMedia={showMedia}
+                partnerName={partnerName}
+              />
+            )}
           </>
         )}
       </Stack>

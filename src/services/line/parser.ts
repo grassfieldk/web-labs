@@ -91,7 +91,10 @@ export const parseLineChatHistory = (text: string): ParseResult => {
         if (!historyMap.has(key)) {
           historyMap.set(key, { year: ym.year, month: ym.month, messages: [] });
         }
-        historyMap.get(key)!.messages.push(msg);
+        const group = historyMap.get(key);
+        if (group) {
+          group.messages.push(msg);
+        }
       }
 
       lastMessage = msg;
