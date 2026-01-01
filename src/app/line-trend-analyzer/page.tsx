@@ -28,6 +28,7 @@ type ParsedMessage = LineMessage;
 type TrendRow = {
   phrase: string;
   count: number;
+  dayCount: number;
   ids: string[];
 };
 
@@ -51,6 +52,9 @@ const EMOJI_OR_SYMBOL_MIN_COUNT = 3;
 // 接続詞のない短めメッセージをフレーズとして数える最大文字数
 // 接続詞がなくこの文字数以下の場合、メッセージ全体を１フレーズとする
 const FULL_COUNT_MAX_LEN_NO_CONJUNCTION = 30;
+// N-gram で抽出したフレーズの出現日数の除外頻度
+// 総日数に対してこの比率を超えたら除外
+const NGRAM_MAX_DAILY_FREQUENCY_RATIO = 0.1;
 
 // Common stop words to exclude from trending phrases
 // biome-ignore format: Preserve manual formatting to maintain category comments and alignment
@@ -59,7 +63,7 @@ const STOP_WORDS = new Set([
   "この", "その", "あの", "どの",
   "いや", "まあ", "たしか", "それで", "実は",
   "えっ", "あっ", "うわ", "うわあ", "ああ", "おう", "よう",
-  "はい", "いいえ", "そう"
+  "はい", "いいえ", "そう",
 ]);
 
 function normalizeKeyText(text: string) {
@@ -203,7 +207,17 @@ function isMeaningfulNGram(
 }
 
 function getTopPhrases(
-  counts: Map<string, { phrase: string; tokens: string[]; count: number }>
+  counts: Map<
+    string,
+    {
+      phrase: string;
+      tokens: string[];
+      count: number;
+      dates: Set<string>;
+      isFromNGram: boolean;
+    }
+  >,
+  totalDaysCount: number
 ) {
   // Performance: keep limited top candidates via min-heap
   type CountItem = {
@@ -211,6 +225,8 @@ function getTopPhrases(
     tokens: string[];
     count: number;
     ids: string[];
+    dates: Set<string>;
+    isFromNGram: boolean;
   };
 
   const isWorse = (a: CountItem, b: CountItem) => {
@@ -275,7 +291,19 @@ function getTopPhrases(
   const kept: TrendRow[] = [];
 
   for (const item of candidates) {
-    kept.push({ phrase: item.phrase, count: item.count, ids: item.ids });
+    if (
+      item.isFromNGram &&
+      item.dates.size > totalDaysCount * NGRAM_MAX_DAILY_FREQUENCY_RATIO
+    ) {
+      continue;
+    }
+
+    kept.push({
+      phrase: item.phrase,
+      count: item.count,
+      dayCount: item.dates.size,
+      ids: item.ids,
+    });
 
     if (kept.length >= TOP_N) break;
   }
@@ -295,6 +323,8 @@ function analyzeBuzzwords(
       tokens: string[];
       count: number;
       ids: string[];
+      dates: Set<string>;
+      isFromNGram: boolean;
     }
   >();
 
@@ -302,7 +332,9 @@ function analyzeBuzzwords(
     text: string,
     tokens: string[],
     countedKeysInMessage: Set<string>,
-    messageId: string
+    messageId: string,
+    messageDate: string | null,
+    isFromNGram: boolean = false
   ) => {
     const normalized = normalizeKeyText(text);
 
@@ -325,10 +357,29 @@ function analyzeBuzzwords(
         existing.phrase = displayPhrase;
       }
       existing.ids.push(messageId);
+      if (messageDate) {
+        existing.dates.add(messageDate);
+      }
+      existing.isFromNGram = existing.isFromNGram || isFromNGram;
     } else {
-      counts.set(key, { phrase: displayPhrase, tokens, count: 1, ids: [messageId] });
+      const dates = new Set<string>();
+      if (messageDate) {
+        dates.add(messageDate);
+      }
+      counts.set(key, {
+        phrase: displayPhrase,
+        tokens,
+        count: 1,
+        ids: [messageId],
+        dates,
+        isFromNGram,
+      });
     }
   };
+
+  // 総日数を計算
+  const uniqueDates = new Set(messages.map((m) => m.date).filter((d) => d));
+  const totalDaysCount = uniqueDates.size;
 
   for (const msg of messages) {
     const year = msg.date ? yearFromDate(msg.date) : null;
@@ -350,7 +401,7 @@ function analyzeBuzzwords(
       cleaned.length <= SHORT_MESSAGE_MAX_LEN ||
       countEmojiOrSymbolChars(normalizedWhole) >= EMOJI_OR_SYMBOL_MIN_COUNT
     ) {
-      addCount(cleaned, [cleaned], countedKeysInMessage, msg.id);
+      addCount(cleaned, [cleaned], countedKeysInMessage, msg.id, msg.date || null, false);
       continue;
     }
 
@@ -364,7 +415,7 @@ function analyzeBuzzwords(
       cleaned.length <= FULL_COUNT_MAX_LEN_NO_CONJUNCTION &&
       !hasConjunctionOrParticle(tokens)
     ) {
-      addCount(cleaned, [cleaned], countedKeysInMessage, msg.id);
+      addCount(cleaned, [cleaned], countedKeysInMessage, msg.id, msg.date || null, false);
       continue;
     }
 
@@ -437,14 +488,21 @@ function analyzeBuzzwords(
         }
         if (overlaps) continue;
 
-        addCount(cand.phrase, cand.tokens, countedKeysInMessage, msg.id);
+        addCount(
+          cand.phrase,
+          cand.tokens,
+          countedKeysInMessage,
+          msg.id,
+          msg.date || null,
+          true
+        );
 
         for (let k = cand.start; k < cand.end; k++) used[k] = true;
       }
     }
   }
 
-  return getTopPhrases(counts);
+  return getTopPhrases(counts, totalDaysCount);
 }
 
 export default function TrendAnalyzerPage() {
@@ -619,9 +677,8 @@ export default function TrendAnalyzerPage() {
         )}
 
         {history.length > 0 && (
-          <Group align="end">
+          <Group align="center">
             <Select
-              label="年"
               data={Array.from(new Set(history.map((h) => h.year)))
                 .sort((a, b) => b - a)
                 .map((y) => ({ value: String(y), label: `${String(y)}年` }))}
@@ -648,6 +705,7 @@ export default function TrendAnalyzerPage() {
                 <Table.Th w="4em">#</Table.Th>
                 <Table.Th>フレーズ</Table.Th>
                 <Table.Th w="8em">出現回数</Table.Th>
+                <Table.Th w="8em">登場日数</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -660,6 +718,7 @@ export default function TrendAnalyzerPage() {
                   <Table.Td>{idx + 1}</Table.Td>
                   <Table.Td>{row.phrase}</Table.Td>
                   <Table.Td>{row.count}</Table.Td>
+                  <Table.Td>{row.dayCount}</Table.Td>
                 </Table.Tr>
               ))}
             </Table.Tbody>
