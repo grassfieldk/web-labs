@@ -100,7 +100,7 @@ Con: [Content]
         body: JSON.stringify({
           messages: [{ role: "user", content: systemPrompt }],
           provider: "gemini",
-          model: "gemini-2.5-flash",
+          model: "gemini-3-flash-preview",
         }),
       });
 
