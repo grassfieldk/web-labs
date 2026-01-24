@@ -15,7 +15,7 @@ import {
   TextInput,
 } from "@mantine/core";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MdPlayArrow, MdSkipNext } from "react-icons/md";
+import { MdPlayArrow } from "react-icons/md";
 import PageBuilder from "@/components/layout/PageBuilder";
 
 type PersonalityKey = "smart" | "normal" | "monster";
@@ -247,24 +247,25 @@ Con: [Content]
                 />
               </Grid.Col>
             </Grid>
+            <Button
+              fullWidth
+              onClick={() => {
+                generateDebate();
+                setIsSettingsOpen(false);
+              }}
+              disabled={isLoading || !topic}
+              leftSection={<MdPlayArrow />}
+              color="blue"
+            >
+              レスバト開始！
+            </Button>
           </Stack>
         </Modal>
 
         <Grid>
-          <Grid.Col span={4}>
+          <Grid.Col span={12}>
             <Button fullWidth onClick={() => setIsSettingsOpen(true)} variant="default">
-              設定
-            </Button>
-          </Grid.Col>
-          <Grid.Col span={8}>
-            <Button
-              fullWidth
-              onClick={generateDebate}
-              disabled={isLoading || !topic}
-              leftSection={messages.length === 0 ? <MdPlayArrow /> : <MdSkipNext />}
-              color="blue"
-            >
-              {messages.length === 0 ? "レスバト開始！" : "もう一回！"}
+              レスバトをはじめる！
             </Button>
           </Grid.Col>
         </Grid>
