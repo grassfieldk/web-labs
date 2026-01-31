@@ -46,6 +46,58 @@ type DebateMessage = {
   content: string;
 };
 
+const buildDebatePrompt = (params: {
+  topic: string;
+  language: string;
+  proPrompt: string;
+  conPrompt: string;
+  messagesPerPerson: number;
+}) => {
+  const { topic, language, proPrompt, conPrompt, messagesPerPerson } = params;
+  return `
+Simulate a debate between two personalities on the topic: "${topic}".
+Language: ${language}
+
+Pro (Agree): ${proPrompt}
+Con (Disagree): ${conPrompt}
+
+Instructions:
+- Act as these two personalities debating.
+- Generate a total of ${messagesPerPerson * 2} turns (${messagesPerPerson} from Pro, ${messagesPerPerson} from Con).
+- Start with Pro.
+- Make each response substantial (around 100-140 characters).
+- Strictly follow this format for every line:
+Pro: [Content]
+Con: [Content]
+`;
+};
+
+const createDebateMessage = (side: "pro" | "con", content: string): DebateMessage => ({
+  id: crypto.randomUUID(),
+  side,
+  content,
+});
+
+const appendDebateLine = (prev: DebateMessage[], rawLine: string): DebateMessage[] => {
+  const trimmed = rawLine.trim();
+  if (!trimmed) return prev;
+
+  if (trimmed.startsWith("Pro:")) {
+    const content = trimmed.replace(/^Pro:\s*/, "");
+    return [...prev, createDebateMessage("pro", content)];
+  }
+  if (trimmed.startsWith("Con:")) {
+    const content = trimmed.replace(/^Con:\s*/, "");
+    return [...prev, createDebateMessage("con", content)];
+  }
+
+  if (prev.length === 0) return prev;
+  const next = [...prev];
+  const last = next[next.length - 1];
+  next[next.length - 1] = { ...last, content: `${last.content} ${trimmed}` };
+  return next;
+};
+
 export default function AiDystopiaPage() {
   const theme = useMantineTheme();
   const [topic, setTopic] = useState("");
@@ -116,22 +168,13 @@ export default function AiDystopiaPage() {
     setMessages([]); // Clear previous messages
 
     // Construct the prompt
-    const systemPrompt = `
-Simulate a debate between two personalities on the topic: "${topic}".
-Language: ${language}
-
-Pro (Agree): ${PERSONALITIES[proPersonality].prompt}
-Con (Disagree): ${PERSONALITIES[conPersonality].prompt}
-
-Instructions:
-- Act as these two personalities debating.
-- Generate a total of ${messagesPerPerson * 2} turns (${messagesPerPerson} from Pro, ${messagesPerPerson} from Con).
-- Start with Pro.
-- Make each response substantial (around 100-140 characters).
-- Strictly follow this format for every line:
-Pro: [Content]
-Con: [Content]
-`;
+    const systemPrompt = buildDebatePrompt({
+      topic,
+      language,
+      proPrompt: PERSONALITIES[proPersonality].prompt,
+      conPrompt: PERSONALITIES[conPersonality].prompt,
+      messagesPerPerson,
+    });
 
     try {
       const response = await fetch("/api/llm/chat", {
@@ -162,58 +205,13 @@ Con: [Content]
         buffer = lines.pop() || "";
 
         for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed) continue;
-
-          if (trimmed.startsWith("Pro:")) {
-            const content = trimmed.replace(/^Pro:\s*/, "");
-            setMessages((prev) => [
-              ...prev,
-              { id: crypto.randomUUID(), side: "pro", content },
-            ]);
-          } else if (trimmed.startsWith("Con:")) {
-            const content = trimmed.replace(/^Con:\s*/, "");
-            setMessages((prev) => [
-              ...prev,
-              { id: crypto.randomUUID(), side: "con", content },
-            ]);
-          } else {
-            // Append to the last message if it's a continuation
-            setMessages((prev) => {
-              if (prev.length === 0) return prev;
-              const newMessages = [...prev];
-              const lastMsg = newMessages[newMessages.length - 1];
-              lastMsg.content += ` ${trimmed}`;
-              return newMessages;
-            });
-          }
+          setMessages((prev) => appendDebateLine(prev, line));
         }
       }
 
       // Process any remaining buffer
       if (buffer.trim()) {
-        const trimmed = buffer.trim();
-        if (trimmed.startsWith("Pro:")) {
-          const content = trimmed.replace(/^Pro:\s*/, "");
-          setMessages((prev) => [
-            ...prev,
-            { id: crypto.randomUUID(), side: "pro", content },
-          ]);
-        } else if (trimmed.startsWith("Con:")) {
-          const content = trimmed.replace(/^Con:\s*/, "");
-          setMessages((prev) => [
-            ...prev,
-            { id: crypto.randomUUID(), side: "con", content },
-          ]);
-        } else {
-          setMessages((prev) => {
-            if (prev.length === 0) return prev;
-            const newMessages = [...prev];
-            const lastMsg = newMessages[newMessages.length - 1];
-            lastMsg.content += ` ${trimmed}`;
-            return newMessages;
-          });
-        }
+        setMessages((prev) => appendDebateLine(prev, buffer));
       }
     } catch (error) {
       console.error(error);

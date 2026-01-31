@@ -1,61 +1,31 @@
 "use client";
 
 import { Alert, Button, Stack, Text, Textarea } from "@mantine/core";
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { MdError } from "react-icons/md";
 import PageBuilder from "@/components/layout/PageBuilder";
 import { Caption } from "@/components/ui/Basics";
+import { translateUmatomaText } from "@/services/umatoma/translator";
 import { logMessage } from "@/utils/logger.client";
-import { halfToFullWidth } from "@/utils/stringConverter";
 
-export default function VideoDownloaderPage() {
+export default function UmatomaPage() {
   const [input, setInput] = useState("");
   const [output, setOutput] = useState("");
   const [message, setMessage] = useState<string | null>(null);
 
   const outputRef = useRef<HTMLTextAreaElement>(null);
 
-  const convertText = () => {
-    let trimmed = false;
-    let result = "";
-    const fullWidthInput = halfToFullWidth(input, true);
+  const convertText = useCallback(() => {
+    const { output, message, fullWidthInput } = translateUmatomaText(input);
+    setOutput(output);
+    setMessage(message);
 
-    if (!/[ぁ-んァ-ン]/.test(fullWidthInput)) {
-      setMessage("うまトマ語に対応しているのは ひらがな または カタカナ のみです");
-      return;
+    if (output) {
+      logMessage("umatoma", "INFO", `Input: ${fullWidthInput}, Output: ${output}`);
     }
+  }, [input]);
 
-    for (const ch of fullWidthInput) {
-      if (ch === "\n") {
-        result += "\n";
-      } else if (ch === " ") {
-        result += " ";
-      } else if ("！？「」『』（）【】○◯●△▲▽▼＝♡♥☆★↑↓←→、。～ーっッ".includes(ch)) {
-        result += ch;
-      } else if (/^[\u3040-\u309F]$/.test(ch)) {
-        if ("あかさたなはまやらわえけせてねへめれぁゃ".includes(ch)) {
-          result += "ま";
-        } else if ("がざだばげぜでべ".includes(ch)) {
-          result += "ま";
-        } else if ("ゔぎじぢびぐずづぶごぞどぼ".includes(ch)) {
-          result += "ゔ";
-        } else {
-          result += "う";
-        }
-      } else if (/^[\u30A0-\u30FF]$/.test(ch)) {
-        result += "マ";
-      } else {
-        trimmed = true;
-      }
-    }
-
-    setOutput(result);
-    setMessage(trimmed ? "うまトマ語に非対応の文字は煮込む過程で消滅しました" : null);
-
-    logMessage("umatoma", "INFO", `Input: ${fullWidthInput}, Output: ${result}`);
-  };
-
-  const copyOutput = async () => {
+  const copyOutput = useCallback(async () => {
     if (outputRef.current) {
       try {
         await navigator.clipboard.writeText(outputRef.current.value);
@@ -64,7 +34,7 @@ export default function VideoDownloaderPage() {
         setMessage("こぼしてしまったためコピーできませんでした");
       }
     }
-  };
+  }, []);
 
   return (
     <PageBuilder

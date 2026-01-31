@@ -12,37 +12,72 @@ interface SwaggerUIWindow extends Window {
   SwaggerUIStandalonePreset?: unknown;
 }
 
+const appendStylesheet = (href: string) => {
+  const existing = document.querySelector(`link[href="${href}"]`);
+  if (existing) return;
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = href;
+  document.head.appendChild(link);
+};
+
+const loadScript = (src: string) => {
+  const existing = document.querySelector(`script[src="${src}"]`) as
+    | HTMLScriptElement
+    | null;
+
+  if (existing?.dataset.loaded === "true") {
+    return Promise.resolve();
+  }
+
+  const script = existing ?? document.createElement("script");
+  if (!existing) {
+    script.src = src;
+    script.async = true;
+    document.body.appendChild(script);
+  }
+
+  return new Promise<void>((resolve, reject) => {
+    const onLoad = () => {
+      script.dataset.loaded = "true";
+      resolve();
+    };
+    const onError = () => reject(new Error(`Failed to load script: ${src}`));
+
+    script.addEventListener("load", onLoad, { once: true });
+    script.addEventListener("error", onError, { once: true });
+  });
+};
+
 export default function ApiDocsPage() {
   const swaggerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const loadSwaggerUI = async () => {
-      const link = document.createElement("link");
-      link.rel = "stylesheet";
-      link.href = "/resources/swagger/swagger-ui.css";
-      document.head.appendChild(link);
+      appendStylesheet("/resources/swagger/swagger-ui.css");
 
-      const bundleScript = document.createElement("script");
-      bundleScript.src = "/resources/swagger/swagger-ui-bundle.js";
-      bundleScript.async = true;
-      document.body.appendChild(bundleScript);
+      const win = window as unknown as SwaggerUIWindow;
+      const tasks: Promise<void>[] = [];
+      if (!win?.SwaggerUIBundle) {
+        tasks.push(loadScript("/resources/swagger/swagger-ui-bundle.js"));
+      }
+      if (!win?.SwaggerUIStandalonePreset) {
+        tasks.push(loadScript("/resources/swagger/swagger-ui-standalone-preset.js"));
+      }
+      if (tasks.length > 0) {
+        await Promise.all(tasks);
+      }
 
-      const presetScript = document.createElement("script");
-      presetScript.src = "/resources/swagger/swagger-ui-standalone-preset.js";
-      presetScript.async = true;
-      document.body.appendChild(presetScript);
-
-      bundleScript.onload = () => {
-        const win = window as unknown as SwaggerUIWindow;
-        win?.SwaggerUIBundle?.({
-          url: "/resources/swagger/openapi.yaml",
-          dom_id: "#swagger-ui",
-          presets: [win?.SwaggerUIBundle?.presets?.apis, win?.SwaggerUIStandalonePreset],
-          layout: "StandaloneLayout",
-        });
-      };
+      win?.SwaggerUIBundle?.({
+        url: "/resources/swagger/openapi.yaml",
+        dom_id: "#swagger-ui",
+        presets: [win?.SwaggerUIBundle?.presets?.apis, win?.SwaggerUIStandalonePreset],
+        layout: "StandaloneLayout",
+      });
     };
-    loadSwaggerUI();
+    loadSwaggerUI().catch((error) => {
+      console.error("Swagger UI init error:", error);
+    });
   }, []);
 
   return <div id="swagger-ui" ref={swaggerRef} />;

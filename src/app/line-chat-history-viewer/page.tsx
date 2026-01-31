@@ -1,7 +1,7 @@
 "use client";
 
 import { FileInput, Group, Select, Stack, Switch } from "@mantine/core";
-import React, { useState } from "react";
+import { useMemo, useState } from "react";
 import PageBuilder from "@/components/layout/PageBuilder";
 import { LineChatViewer } from "@/components/ui/line";
 import { type LineMessage, parseLineChatHistory } from "@/services/line/parser";
@@ -15,34 +15,48 @@ export default function ChatPage() {
   >([]);
   const [selectedYearMonth, setSelectedYearMonth] = useState<string>("");
 
-  React.useEffect(() => {
-    console.log(`Partner name changed to: "${partnerName}"`);
-  }, [partnerName]);
+  const onFileChange = async (file: File | null) => {
+    if (!file) {
+      setPartnerName("");
+      setHistory([]);
+      setSelectedYearMonth("");
+      return;
+    }
 
-  const onFileChange = (file: File | null) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        const { partnerName, history: parsedHistory } = parseLineChatHistory(
-          reader.result
-        );
-        setPartnerName(partnerName);
-        setHistory(parsedHistory);
-        // Select the first year-month by default
-        if (parsedHistory.length > 0) {
-          const { year, month } = parsedHistory[0];
-          setSelectedYearMonth(`${year}-${String(month).padStart(2, "0")}`);
-        }
+    try {
+      const text = await file.text();
+      const { partnerName, history: parsedHistory } = parseLineChatHistory(text);
+      setPartnerName(partnerName);
+      setHistory(parsedHistory);
+      // Select the first year-month by default
+      if (parsedHistory.length > 0) {
+        const { year, month } = parsedHistory[0];
+        setSelectedYearMonth(`${year}-${String(month).padStart(2, "0")}`);
+      } else {
+        setSelectedYearMonth("");
       }
-    };
-    reader.readAsText(file, "utf-8");
+    } catch (error) {
+      console.error("Failed to parse chat history:", error);
+      setPartnerName("");
+      setHistory([]);
+      setSelectedYearMonth("");
+    }
   };
 
-  const displayMessages =
-    history.find(
-      (h) => selectedYearMonth === `${h.year}-${String(h.month).padStart(2, "0")}`
-    )?.messages || [];
+  const yearMonthOptions = useMemo(() => {
+    return history.map((h) => ({
+      value: `${h.year}-${String(h.month).padStart(2, "0")}`,
+      label: `${h.year}年${String(h.month).padStart(2, "0")}月`,
+    }));
+  }, [history]);
+
+  const displayMessages = useMemo(() => {
+    return (
+      history.find(
+        (h) => selectedYearMonth === `${h.year}-${String(h.month).padStart(2, "0")}`
+      )?.messages || []
+    );
+  }, [history, selectedYearMonth]);
 
   return (
     <PageBuilder title="LINE チャット履歴ビューア">
@@ -58,10 +72,7 @@ export default function ChatPage() {
           <>
             <Group>
               <Select
-                data={history.map((h) => ({
-                  value: `${h.year}-${String(h.month).padStart(2, "0")}`,
-                  label: `${h.year}年${String(h.month).padStart(2, "0")}月`,
-                }))}
+                data={yearMonthOptions}
                 value={selectedYearMonth}
                 onChange={(v) => v && setSelectedYearMonth(v)}
                 searchable
