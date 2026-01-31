@@ -5,6 +5,7 @@ import {
   Button,
   Grid,
   Group,
+  Image,
   Modal,
   NumberInput,
   Paper,
@@ -13,7 +14,9 @@ import {
   Stack,
   Text,
   TextInput,
+  useMantineTheme,
 } from "@mantine/core";
+import html2canvas from "html2canvas";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MdPlayArrow } from "react-icons/md";
 import PageBuilder from "@/components/layout/PageBuilder";
@@ -44,6 +47,7 @@ type DebateMessage = {
 };
 
 export default function AiDystopiaPage() {
+  const theme = useMantineTheme();
   const [topic, setTopic] = useState("");
   const [proPersonality, setProPersonality] = useState<PersonalityKey>("monster");
   const [conPersonality, setConPersonality] = useState<PersonalityKey>("smart");
@@ -53,6 +57,8 @@ export default function AiDystopiaPage() {
   const [messages, setMessages] = useState<DebateMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+  const [imageDataUrl, setImageDataUrl] = useState<string>("");
 
   const viewport = useRef<HTMLDivElement>(null);
 
@@ -69,6 +75,40 @@ export default function AiDystopiaPage() {
   useEffect(() => {
     scrollToBottom();
   }, [messages, scrollToBottom]);
+
+  const handleCopy = () => {
+    const text = messages
+      .map((msg) => `${msg.side === "pro" ? "賛成" : "反対"}: ${msg.content}`)
+      .join("\n");
+    navigator.clipboard.writeText(text);
+  };
+
+  const handleSaveImage = async () => {
+    if (!viewport.current) return;
+    const element = viewport.current;
+    const originalHeight = element.style.height;
+    const originalOverflow = element.style.overflow;
+    const originalWidth = element.style.width;
+    const originalPadding = element.style.padding;
+    const originalBackgroundColor = element.style.backgroundColor;
+    element.style.height = "auto";
+    element.style.overflow = "visible";
+    element.style.width = "480px";
+    element.style.padding = "15px";
+    element.style.backgroundColor = theme.colors.gray[0];
+    try {
+      const canvas = await html2canvas(element);
+      const dataUrl = canvas.toDataURL("image/png");
+      setImageDataUrl(dataUrl);
+      setIsImageModalOpen(true);
+    } finally {
+      element.style.height = originalHeight;
+      element.style.overflow = originalOverflow;
+      element.style.width = originalWidth;
+      element.style.padding = originalPadding;
+      element.style.backgroundColor = originalBackgroundColor;
+    }
+  };
 
   const generateDebate = async () => {
     if (isLoading) return;
@@ -262,10 +302,40 @@ Con: [Content]
           </Stack>
         </Modal>
 
+        <Modal
+          opened={isImageModalOpen}
+          onClose={() => setIsImageModalOpen(false)}
+          title="画像保存"
+          size="lg"
+          centered
+        >
+          {imageDataUrl && <Image src={imageDataUrl} alt="Debate" />}
+        </Modal>
+
         <Grid>
-          <Grid.Col span={12}>
+          <Grid.Col span={4}>
             <Button fullWidth onClick={() => setIsSettingsOpen(true)} variant="default">
               レスバトをはじめる！
+            </Button>
+          </Grid.Col>
+          <Grid.Col span={4}>
+            <Button
+              fullWidth
+              variant="outline"
+              onClick={handleCopy}
+              disabled={messages.length === 0}
+            >
+              コピー
+            </Button>
+          </Grid.Col>
+          <Grid.Col span={4}>
+            <Button
+              fullWidth
+              variant="outline"
+              onClick={handleSaveImage}
+              disabled={messages.length === 0}
+            >
+              画像保存
             </Button>
           </Grid.Col>
         </Grid>
