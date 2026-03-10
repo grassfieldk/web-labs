@@ -59,6 +59,11 @@ function normalizeKeyText(text: string) {
   // "！？！？！？" → "！？！？"
   normalized = normalized.replace(/(\S{2})\1{2,}/gu, "$1$1");
 
+  // Canonicalize a burst of exclamation-style punctuation at the end.
+  // Treat "！", "!", and mixed repeats as the same terminal phrase marker.
+  normalized = normalized.replace(/[!！]+$/u, "！");
+  normalized = normalized.replace(/[?？]+$/u, "？");
+
   return normalized;
 }
 
@@ -373,6 +378,8 @@ export function analyzeBuzzwords(
 
     const normalizedWhole = normalizeKeyText(cleaned);
 
+    const endsWithExclamation = /[!！]$/u.test(normalizedWhole);
+
     // 1. Short message OR Emoji/Symbol spam
     // If message is short (≤10 chars) OR contains many emojis/symbols/punctuation,
     // count the whole message as a phrase.
@@ -380,6 +387,12 @@ export function analyzeBuzzwords(
       cleaned.length <= SHORT_MESSAGE_MAX_LEN ||
       countEmojiOrSymbolChars(normalizedWhole) >= EMOJI_OR_SYMBOL_MIN_COUNT
     ) {
+      addCount(cleaned, [cleaned], countedKeysInMessage, msg.id, msg.date || null, false);
+      continue;
+    }
+
+    // Treat exclamatory sentences as a single phrase, similar to short/full-count messages.
+    if (endsWithExclamation) {
       addCount(cleaned, [cleaned], countedKeysInMessage, msg.id, msg.date || null, false);
       continue;
     }
