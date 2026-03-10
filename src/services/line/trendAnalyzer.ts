@@ -10,6 +10,33 @@ export type TrendRow = {
   ids: string[];
 };
 
+type TrailingKind = "pure" | "mixed";
+
+type TrailingMeta = {
+  char: string;
+  body: string;
+  counts: {
+    pure: Map<number, number>;
+    mixed: Map<number, number>;
+  };
+  totals: {
+    pure: number;
+    mixed: number;
+  };
+};
+
+const MAX_TRAILING_REPEAT_DISPLAY = 20;
+
+type PhraseEntry = {
+  phrase: string;
+  tokens: string[];
+  count: number;
+  ids: string[];
+  dates: Set<string>;
+  isFromNGram: boolean;
+  trailing?: TrailingMeta;
+};
+
 // メッセージ全体をフレーズとして数える最大文字数
 // これ以下の短いメッセージは全体を１フレーズとする
 const SHORT_MESSAGE_MAX_LEN = 5;
@@ -77,6 +104,86 @@ function truncateRepeatedPhrases(text: string) {
   truncated = truncated.replace(/(\S{2})\1{4,}/gu, "$1$1$1$1$1");
 
   return truncated;
+}
+
+function canonicalTrailingChar(char: string) {
+  if (char === "!" || char === "！") return "！";
+  if (char === "?" || char === "？") return "？";
+  return "";
+}
+
+function extractTrailingPunctuation(text: string) {
+  const match = text.match(/^(.*?)([!！?？]+)$/u);
+  if (!match) {
+    return { body: text, trailing: "", char: "", length: 0 };
+  }
+  const body = match[1];
+  const trailing = match[2];
+  const char = canonicalTrailingChar(trailing[trailing.length - 1]);
+  return { body, trailing, char, length: trailing.length };
+}
+
+type TrailingInfo = ReturnType<typeof extractTrailingPunctuation>;
+
+function createTrailingMeta(info: TrailingInfo): TrailingMeta {
+  return {
+    char: info.char,
+    body: info.body,
+    counts: {
+      pure: new Map(),
+      mixed: new Map(),
+    },
+    totals: {
+      pure: 0,
+      mixed: 0,
+    },
+  };
+}
+
+function ensureTrailingMeta(entry: { trailing?: TrailingMeta }, info: TrailingInfo) {
+  if (info.length === 0) return entry.trailing;
+  if (!entry.trailing) {
+    entry.trailing = createTrailingMeta(info);
+    return entry.trailing;
+  }
+  if (!entry.trailing.char && info.char) {
+    entry.trailing.char = info.char;
+  }
+  if (info.body.length > entry.trailing.body.length) {
+    entry.trailing.body = info.body;
+  }
+  return entry.trailing;
+}
+
+function recordTrailingRun(meta: TrailingMeta, length: number, isPure: boolean) {
+  const kind: TrailingKind = isPure ? "pure" : "mixed";
+  const bucket = meta.counts[kind];
+    bucket.set(length, (bucket.get(length) ?? 0) + 1);
+  meta.totals[kind] += 1;
+}
+
+function pickBestTrailingRun(meta: TrailingMeta): number | null {
+  const target: TrailingKind | null =
+    meta.totals.mixed > 0 ? "mixed" : meta.totals.pure > 0 ? "pure" : null;
+  if (!target) return null;
+  const bucket = meta.counts[target];
+  let bestLength: number | null = null;
+  let bestFreq = 0;
+  for (const [length, freq] of bucket.entries()) {
+    if (length < 2) continue;
+    if (freq > bestFreq || (freq === bestFreq && (bestLength === null || length < bestLength))) {
+      bestFreq = freq;
+      bestLength = length;
+    }
+  }
+  if (bestLength === null || bestFreq === 0) return null;
+  return Math.min(bestLength, MAX_TRAILING_REPEAT_DISPLAY);
+}
+
+function formatTrailingPhrase(meta: TrailingMeta, fallback: string) {
+  const bestRun = pickBestTrailingRun(meta);
+  if (!bestRun || !meta.char) return fallback;
+  return `${meta.body}${meta.char.repeat(bestRun)}`;
 }
 
 function countEmojiOrSymbolChars(text: string) {
@@ -211,6 +318,7 @@ function getTopPhrases(
     ids: string[];
     dates: Set<string>;
     isFromNGram: boolean;
+    trailing?: TrailingMeta;
   };
 
   const isWorse = (a: CountItem, b: CountItem) => {
@@ -266,11 +374,18 @@ function getTopPhrases(
     }
   }
 
-  const candidates = heap.sort((a, b) => {
+  const candidates = heap
+    .map((item) => {
+      if (item.trailing) {
+        item.phrase = formatTrailingPhrase(item.trailing, item.phrase);
+      }
+      return item;
+    })
+    .sort((a, b) => {
     if (b.count !== a.count) return b.count - a.count;
     if (b.tokens.length !== a.tokens.length) return b.tokens.length - a.tokens.length;
     return b.phrase.length - a.phrase.length;
-  });
+    });
 
   const kept: TrendRow[] = [];
 
@@ -300,17 +415,7 @@ export function analyzeBuzzwords(
   targetYear: number,
   tokenizer: kuromoji.Tokenizer
 ) {
-  const counts = new Map<
-    string,
-    {
-      phrase: string;
-      tokens: string[];
-      count: number;
-      ids: string[];
-      dates: Set<string>;
-      isFromNGram: boolean;
-    }
-  >();
+  const counts = new Map<string, PhraseEntry>();
 
   const addCount = (
     text: string,
@@ -332,6 +437,11 @@ export function analyzeBuzzwords(
     countedKeysInMessage.add(key);
 
     const displayPhrase = truncateRepeatedPhrases(text);
+    const displayTrailingInfo = extractTrailingPunctuation(displayPhrase);
+    const originalTrailingInfo = extractTrailingPunctuation(text);
+    const trailingRunLength = originalTrailingInfo.length;
+    const isPureTrailing =
+      trailingRunLength > 0 && originalTrailingInfo.body.trim().length === 0;
 
     const existing = counts.get(key);
     if (existing) {
@@ -345,19 +455,28 @@ export function analyzeBuzzwords(
         existing.dates.add(messageDate);
       }
       existing.isFromNGram = existing.isFromNGram || isFromNGram;
+      const trailingMeta = ensureTrailingMeta(existing, displayTrailingInfo);
+      if (trailingMeta && trailingRunLength > 0) {
+        recordTrailingRun(trailingMeta, trailingRunLength, isPureTrailing);
+      }
     } else {
       const dates = new Set<string>();
       if (messageDate) {
         dates.add(messageDate);
       }
-      counts.set(key, {
+      const newEntry: PhraseEntry = {
         phrase: displayPhrase,
         tokens,
         count: 1,
         ids: [messageId],
         dates,
         isFromNGram,
-      });
+      };
+      const trailingMeta = ensureTrailingMeta(newEntry, displayTrailingInfo);
+      if (trailingMeta && trailingRunLength > 0) {
+        recordTrailingRun(trailingMeta, trailingRunLength, isPureTrailing);
+      }
+      counts.set(key, newEntry);
     }
   };
 
