@@ -6,6 +6,27 @@ export type LineMessage = {
   content: string;
 };
 
+const globalCrypto = typeof globalThis !== "undefined" ? globalThis.crypto : undefined;
+
+function generateUuid() {
+  if (globalCrypto && typeof globalCrypto.randomUUID === "function") {
+    return globalCrypto.randomUUID();
+  }
+
+  if (globalCrypto && typeof globalCrypto.getRandomValues === "function") {
+    const arr = new Uint8Array(16);
+    globalCrypto.getRandomValues(arr);
+    arr[6] = (arr[6] & 0x0f) | 0x40;
+    arr[8] = (arr[8] & 0x3f) | 0x80;
+    const hex = Array.from(arr)
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  }
+
+  return `msg-${Math.random().toString(36).slice(2)}-${Date.now().toString(36)}`;
+}
+
 export type ParseResult = {
   partnerName: string;
   history: Array<{
@@ -77,7 +98,7 @@ export const parseLineChatHistory = (text: string): ParseResult => {
     if (parts.length >= 3 && currentDate) {
       const [time, sender, ...rest] = parts;
       const msg: LineMessage = {
-        id: crypto.randomUUID(),
+        id: generateUuid(),
         date: currentDate,
         time,
         sender,

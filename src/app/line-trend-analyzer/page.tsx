@@ -123,24 +123,22 @@ export default function TrendAnalyzerPage() {
     }
   };
 
+  const allMessages = useMemo(() => history.flatMap((h) => h.messages), [history]);
+
   const resultRows = useMemo(() => {
     if (history.length === 0 || !tokenizer) return [];
     const yearMessages = history
       .filter((h) => h.year === targetYear)
       .flatMap((h) => h.messages);
     if (yearMessages.length === 0) return [];
-    return analyzeBuzzwords(yearMessages, targetYear, tokenizer);
-  }, [history, targetYear, tokenizer]);
+    return analyzeBuzzwords(allMessages, targetYear, tokenizer);
+  }, [history, targetYear, tokenizer, allMessages]);
 
   const targetYearMessageCount = useMemo(() => {
     return history
       .filter((h) => h.year === targetYear)
       .reduce((sum, h) => sum + h.messages.length, 0);
   }, [history, targetYear]);
-
-  const allMessages = useMemo(() => {
-    return history.flatMap((h) => h.messages);
-  }, [history]);
 
   useEffect(() => {
     if (selectedDate && selectedRow && allMessages.length > 0) {
