@@ -10,58 +10,89 @@ export type TrendRow = {
   ids: string[];
 };
 
-type TrailingKind = "pure" | "mixed";
-
-type TrailingMeta = {
-  char: string;
-  body: string;
-  counts: {
-    pure: Map<number, number>;
-    mixed: Map<number, number>;
-  };
-  totals: {
-    pure: number;
-    mixed: number;
-  };
+type PhraseToken = {
+  text: string;
+  pos: string;
+  posDetail1: string;
+  conjugatedForm: string;
+  isStableContent: boolean;
+  isSpecificContent: boolean;
 };
 
-const MAX_TRAILING_REPEAT_DISPLAY = 20;
+type SurfaceEntry = {
+  count: number;
+  firstSeen: number;
+};
 
 type PhraseEntry = {
-  phrase: string;
-  tokens: string[];
+  normalized: string;
+  surfaces: Map<string, SurfaceEntry>;
+  specificContentCounts: Map<number, number>;
   count: number;
-  ids: string[];
-  dates: Set<string>;
-  isFromNGram: boolean;
-  trailing?: TrailingMeta;
+  maxTokenCount: number;
+  firstSeen: number;
+  isExclamationTemplate: boolean;
 };
 
-// メッセージ全体をフレーズとして数える最大文字数
-// これ以下の短いメッセージは全体を１フレーズとする
+type AddCountContext = {
+  countedKeysInMessage: Set<string>;
+  messageIndex: number;
+  sourceText: string;
+  isExclamationTemplate: boolean;
+};
+
+type RankedEntry = {
+  key: string;
+  phrase: string;
+  count: number;
+  specificContentCounts: Map<number, number>;
+  maxTokenCount: number;
+  firstSeen: number;
+  isExclamationTemplate: boolean;
+};
+
+// 短いメッセージは発言全体も候補にする
 const SHORT_MESSAGE_MAX_LEN = 5;
-// N-gram 抽出時の最小フレーズ文字数
-// これより短いフレーズは N-gram 抽出を行わない
+// 部分フレーズとして扱う最小文字数
 const MIN_PHRASE_LEN = 3;
-// N-gram 抽出時の最大単語数
-// この数まで連続フレーズを抽出
-const MAX_NGRAM = 5;
+// 助詞や助動詞を含めた連続フレーズの最大単語数
+const MAX_NGRAM = 8;
 // ランキング表示件数
 const TOP_N = 30;
-// パフォーマンス最適化用）ヒープ保持する候補フレーズ上限
-// これを超える候補は最も頻度の低いものから削除
-const CANDIDATE_LIMIT = 600;
-// メッセージ全体をフレーズとして数えるための絵文字/記号の最小数
-// これ以上含む場合、メッセージ全体を１フレーズとする
-const EMOJI_OR_SYMBOL_MIN_COUNT = 3;
-// 接続詞のない短めメッセージをフレーズとして数える最大文字数
-// 接続詞がなくこの文字数以下の場合、メッセージ全体を１フレーズとする
+// 上位結果のうち末尾が感嘆符の定型文に保証する件数
+const EXCLAMATION_TEMPLATE_RESULT_COUNT = Math.ceil(TOP_N * 0.2);
+// 発言全体も候補にする強調記号数
+const EXPRESSIVE_SYMBOL_MIN_COUNT = 3;
+// 接続要素のないメッセージを発言全体として扱う最大文字数
 const FULL_COUNT_MAX_LEN_NO_CONJUNCTION = 30;
-// N-gram で抽出したフレーズの出現日数の除外頻度
-// 総日数に対してこの比率を超えたら除外
-const NGRAM_MAX_DAILY_FREQUENCY_RATIO = 0.1;
+const CONTENT_POS_PREFIXES = ["名詞", "動詞", "形容詞", "副詞", "感動詞"] as const;
+const EXPRESSIVE_SYMBOL_PATTERN = /^[！？!?‼⁉ー〜~…]+$/u;
+const EXCLUDED_MESSAGE_MARKERS = [
+  "メッセージの送信を取り消しました",
+  "アナウンスしました",
+  "[スタンプ]",
+  "[写真]",
+  "[アルバム]",
+  "[ボイスメッセージ]",
+  "[ノート]",
+] as const;
 
-// Common stop words to exclude from trending phrases
+function normalizeKeyText(text: string) {
+  // 書式文字を除去し、繰り返し記号と末尾の感嘆符・疑問符を正規化する
+  let normalized = text.replace(/\p{Cf}/gu, "");
+  normalized = normalized.replace(/\?/gu, "？");
+  normalized = normalized.replace(/(\S)\1{2,}/gu, "$1$1");
+  normalized = normalized.replace(/(\S{2})\1{2,}/gu, "$1$1");
+  normalized = normalized.replace(/[!！]+$/u, (run) => (run.length >= 2 ? "！！" : run));
+  normalized = normalized.replace(/[?？]+$/u, (run) => (run.length >= 2 ? "？？" : run));
+
+  // ひらがなとカタカナは統合し、その他の表記は元のまま保つ
+  return normalized.replace(/[\u3041-\u3096\u309d-\u309f]/gu, (char) => {
+    const codePoint = char.codePointAt(0);
+    return codePoint === undefined ? char : String.fromCodePoint(codePoint + 0x60);
+  });
+}
+
 // biome-ignore format: Preserve manual formatting to maintain category comments and alignment
 const STOP_WORDS = new Set([
   "これ", "それ", "あれ", "どれ",
@@ -69,549 +100,681 @@ const STOP_WORDS = new Set([
   "いや", "まあ", "たしか", "それで", "実は",
   "えっ", "あっ", "うわ", "うわあ", "ああ", "おう", "よう",
   "はい", "いいえ", "そう",
-]);
+  "こと", "もの", "ため", "ところ",
+  "ある", "いる", "する", "なる", "ない", "てる", "てい",
+  "みたい", "すぎる", "もう", "あと",
+].map(normalizeKeyText));
 
-function normalizeKeyText(text: string) {
-  // Drop Unicode "format" chars (variation selectors, ZWJ/ZWNJ, etc)
-  // so visually identical emojis don't appear as separate phrases.
-  // Avoid NFKC here to keep non-emoji phrases' counts/rankings stable.
-  let normalized = text.replace(/\p{Cf}/gu, "");
+const GENERIC_BASIC_FORMS = new Set(
+  [
+    "ある",
+    "いる",
+    "する",
+    "なる",
+    "やる",
+    "できる",
+    "ない",
+    "てる",
+    "みたい",
+    "すぎる",
+  ].map(normalizeKeyText)
+);
 
-  // Normalize repeated characters: 3+ consecutive identical characters → 2
-  // "きちゃあああああああ" → "きちゃああ"
-  // "！！！！！" → "！！"
-  normalized = normalized.replace(/(\S)\1{2,}/gu, "$1$1");
-
-  // Normalize repeated 2-character sequences: 3+ consecutive identical sequences → 2
-  // "！？！？！？" → "！？！？"
-  normalized = normalized.replace(/(\S{2})\1{2,}/gu, "$1$1");
-
-  // Canonicalize a burst of exclamation-style punctuation at the end.
-  // Treat "！", "!", and mixed repeats as the same terminal phrase marker.
-  normalized = normalized.replace(/[!！]+$/u, "！");
-  normalized = normalized.replace(/[?？]+$/u, "？");
-
-  return normalized;
+function countExpressiveSymbols(text: string) {
+  // 通常の句読点は数えず、絵文字と強調に使われる記号だけを数える
+  return (text.match(/[\p{Extended_Pictographic}！？!?‼⁉〜~…]/gu) ?? []).length;
 }
 
-function truncateRepeatedPhrases(text: string) {
-  // Cap repeated characters at 5
-  // "きちゃああああああ" → "きちゃあああああ"
-  let truncated = text.replace(/(\S)\1{4,}/gu, "$1$1$1$1$1");
-
-  // Cap repeated 2-char sequences at 5
-  // "！？！？！？！？！？！？" → "！？！？！？！？！？"
-  truncated = truncated.replace(/(\S{2})\1{4,}/gu, "$1$1$1$1$1");
-
-  return truncated;
+function isExpressiveText(text: string) {
+  return EXPRESSIVE_SYMBOL_PATTERN.test(text);
 }
 
-function canonicalTrailingChar(char: string) {
-  if (char === "!" || char === "！") return "！";
-  if (char === "?" || char === "？") return "？";
-  return "";
+function hasConjunctionOrParticle(tokens: PhraseToken[]) {
+  return tokens.some(
+    (token) =>
+      token.pos.startsWith("接続詞") ||
+      token.pos.startsWith("助詞") ||
+      token.pos.startsWith("助動詞") ||
+      (token.pos.startsWith("記号") && !isExpressivePhraseToken(token))
+  );
 }
 
-function extractTrailingPunctuation(text: string) {
-  const match = text.match(/^(.*?)([!！?？]+)$/u);
-  if (!match) {
-    return { body: text, trailing: "", char: "", length: 0 };
-  }
-  const body = match[1];
-  const trailing = match[2];
-  const char = canonicalTrailingChar(trailing[trailing.length - 1]);
-  return { body, trailing, char, length: trailing.length };
+function isContentWord(pos: string) {
+  return CONTENT_POS_PREFIXES.some((prefix) => pos.startsWith(prefix));
 }
 
-type TrailingInfo = ReturnType<typeof extractTrailingPunctuation>;
+function isPhraseToken(token: PhraseToken) {
+  return (
+    isContentWord(token.pos) ||
+    token.pos.startsWith("助詞") ||
+    token.pos.startsWith("助動詞") ||
+    token.pos.startsWith("接頭詞") ||
+    isExpressivePhraseToken(token)
+  );
+}
 
-function createTrailingMeta(info: TrailingInfo): TrailingMeta {
+function isExpressivePhraseToken(token: PhraseToken) {
+  return token.pos.startsWith("記号") && isExpressiveText(token.text);
+}
+
+function toPhraseToken(token: kuromoji.Token): PhraseToken {
+  const basicForm = token.basic_form ?? token.surface_form;
+  const posDetail1 = token.pos_detail_1 ?? "*";
+  const isStableContent =
+    isContentWord(token.pos) &&
+    posDetail1 !== "非自立" &&
+    posDetail1 !== "接尾" &&
+    !(token.pos.startsWith("名詞") && posDetail1 === "数");
+  const normalizedBasicForm = normalizeKeyText(basicForm);
+
   return {
-    char: info.char,
-    body: info.body,
-    counts: {
-      pure: new Map(),
-      mixed: new Map(),
-    },
-    totals: {
-      pure: 0,
-      mixed: 0,
-    },
+    text: token.surface_form,
+    pos: token.pos,
+    posDetail1,
+    conjugatedForm: token.conjugated_form ?? "*",
+    isStableContent,
+    isSpecificContent: isStableContent && !isGenericBasicForm(normalizedBasicForm),
   };
 }
 
-function ensureTrailingMeta(entry: { trailing?: TrailingMeta }, info: TrailingInfo) {
-  if (info.length === 0) return entry.trailing;
-  if (!entry.trailing) {
-    entry.trailing = createTrailingMeta(info);
-    return entry.trailing;
-  }
-  if (!entry.trailing.char && info.char) {
-    entry.trailing.char = info.char;
-  }
-  if (info.body.length > entry.trailing.body.length) {
-    entry.trailing.body = info.body;
-  }
-  return entry.trailing;
+function isStableContentToken(token: PhraseToken) {
+  return token.isStableContent;
 }
 
-function recordTrailingRun(meta: TrailingMeta, length: number, isPure: boolean) {
-  const kind: TrailingKind = isPure ? "pure" : "mixed";
-  const bucket = meta.counts[kind];
-    bucket.set(length, (bucket.get(length) ?? 0) + 1);
-  meta.totals[kind] += 1;
-}
-
-function pickBestTrailingRun(meta: TrailingMeta): number | null {
-  const target: TrailingKind | null =
-    meta.totals.mixed > 0 ? "mixed" : meta.totals.pure > 0 ? "pure" : null;
-  if (!target) return null;
-  const bucket = meta.counts[target];
-  let bestLength: number | null = null;
-  let bestFreq = 0;
-  for (const [length, freq] of bucket.entries()) {
-    if (length < 2) continue;
-    if (freq > bestFreq || (freq === bestFreq && (bestLength === null || length < bestLength))) {
-      bestFreq = freq;
-      bestLength = length;
-    }
-  }
-  if (bestLength === null || bestFreq === 0) return null;
-  return Math.min(bestLength, MAX_TRAILING_REPEAT_DISPLAY);
-}
-
-function formatTrailingPhrase(meta: TrailingMeta, fallback: string) {
-  const bestRun = pickBestTrailingRun(meta);
-  if (!bestRun || !meta.char) return fallback;
-  return `${meta.body}${meta.char.repeat(bestRun)}`;
-}
-
-function countEmojiOrSymbolChars(text: string) {
-  // Heuristic: count emoji/symbols + punctuation.
-  // This makes strings like "！！！！" or "wwww"-style symbol spam trigger whole-message counting.
-  return (text.match(/[\p{S}\p{P}]/gu) ?? []).length;
-}
-
-function hasConjunctionOrParticle(tokens: kuromoji.Token[]) {
-  // Treat "connective" signals broadly.
-  // - 接続詞: そして/でも/だから...
-  // - 助詞: が/は/に/を/て/で/けど...
-  // - 助動詞: だ/です/ます/た...
-  // - 記号: 読点/句点/括弧など（kuromoji上は多くが"記号"）
-  //   ただし、感嘆符・疑問符・長音・チルダ（！？!?‼⁉ー〜~）は文末の強調や伸ばし棒として
-  //   フレーズの一部とみなすため、これらのみで構成される記号トークンは「接続的な記号」とはみなさない。
-  return tokens.some(
-    (t) =>
-      t.pos.startsWith("接続詞") ||
-      t.pos.startsWith("助詞") ||
-      t.pos.startsWith("助動詞") ||
-      (t.pos.startsWith("記号") && !/^[！？!?‼⁉ー〜~]+$/.test(t.surface_form))
-  );
-}
-
-// POS (Part of Speech) categories for meaningful phrase extraction
-function isContentWord(pos: string): boolean {
-  // 名詞 = noun, 動詞 = verb, 形容詞 = adjective, 副詞 = adverb
-  // Focus on nouns and verbs (most meaningful for buzz phrases)
+function isGenericBasicForm(normalizedBasicForm: string) {
   return (
-    pos.startsWith("名詞") ||
-    pos.startsWith("動詞") ||
-    pos.startsWith("形容詞") ||
-    pos.startsWith("副詞")
+    GENERIC_BASIC_FORMS.has(normalizedBasicForm) || STOP_WORDS.has(normalizedBasicForm)
   );
 }
 
-function shouldBuildPhraseWith(token: kuromoji.Token): boolean {
-  // Only include content words (nouns, verbs, adjectives, adverbs)
-  // Exclude particles and auxiliary verbs to avoid generic short phrases
-  // Also include exclamation/question marks, prolonged sounds, and tildes as they add meaning/nuance.
-  if (isContentWord(token.pos)) return true;
-  if (token.pos.startsWith("記号") && /^[！？!?‼⁉ー〜~]+$/.test(token.surface_form))
-    return true;
-  return false;
+function isSpecificContentToken(token: PhraseToken) {
+  return token.isSpecificContent;
+}
+
+function countSpecificContentTokens(tokens: PhraseToken[]) {
+  return tokens.reduce(
+    (count, token) => count + (isSpecificContentToken(token) ? 1 : 0),
+    0
+  );
+}
+
+function canStartPhrase(token: PhraseToken) {
+  return isStableContentToken(token) || token.pos.startsWith("接頭詞");
+}
+
+function isCompleteConjugation(token: PhraseToken) {
+  return (
+    token.conjugatedForm === "*" ||
+    token.conjugatedForm === "基本形" ||
+    token.conjugatedForm.startsWith("命令")
+  );
+}
+
+function isMeaningfulStandaloneVerb(token: PhraseToken) {
+  if (isCompleteConjugation(token)) return true;
+  return token.conjugatedForm === "連用形" && !token.text.endsWith("っ");
+}
+
+function canEndPhrase(token: PhraseToken) {
+  if (token.pos.startsWith("接頭詞")) return false;
+  if (token.pos.startsWith("動詞") || token.pos.startsWith("形容詞")) {
+    return isCompleteConjugation(token);
+  }
+  if (token.pos.startsWith("助詞")) return token.posDetail1 === "終助詞";
+  if (token.pos.startsWith("名詞")) return token.posDetail1 !== "非自立";
+  return true;
+}
+
+function isMeaningfulSingleToken(token: PhraseToken, allowVerb: boolean) {
+  if (!isSpecificContentToken(token)) return false;
+  if (token.pos.startsWith("名詞")) {
+    return token.posDetail1 !== "代名詞" && token.posDetail1 !== "数";
+  }
+  if (token.pos.startsWith("動詞")) {
+    return allowVerb && isMeaningfulStandaloneVerb(token);
+  }
+  if (token.pos.startsWith("形容詞")) return isCompleteConjugation(token);
+  return token.pos.startsWith("副詞") || token.pos.startsWith("感動詞");
+}
+
+function isMeaningfulWholeMessage(normalized: string, items: PhraseToken[]) {
+  if (shouldSkipNormalizedPhrase(normalized) || items.length === 0) return false;
+  if (items.length === 1) return isMeaningfulSingleToken(items[0], true);
+  const lastItem = items.at(-1);
+  if (!lastItem || !canStartPhrase(items[0]) || !canEndPhrase(lastItem)) return false;
+  return items.some(isSpecificContentToken);
 }
 
 function cleanMessageContent(content: string) {
-  return (
-    content
-      // LINE stamp emoji (e.g., "(emoji)")
-      .replace(/\(emoji\)/g, " ")
-      // LINE export placeholders
-      .replace(/\[(スタンプ|写真|動画|アルバム)\]/g, " ")
-      // URLs
-      .replace(/https?:\/\/\S+/g, " ")
-      // Mentions like @xxx (rough)
-      .replace(/@[\w\-_.]+/g, " ")
-      .replace(/\s+/g, " ")
-      .trim()
-  );
+  return content
+    .replace(/\(emoji\)/g, " ")
+    .replace(/\[(スタンプ|写真|動画|アルバム)\]/g, " ")
+    .replace(/https?:\/\/\S+/g, " ")
+    .replace(/@[\w\-_.]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function collapseRepeatedExclamationTemplate(text: string) {
+  // 同じ感嘆符付き定型文の連続だけを 1 回分にまとめる
+  const match = text.match(/^(.+?[!！])(?:\s*\1)+$/u);
+  const repeatedTemplate = match?.[1];
+  if (!repeatedTemplate) return text;
+
+  const contentWithoutExclamation = repeatedTemplate.replace(/[!！]/gu, "").trim();
+  return contentWithoutExclamation ? repeatedTemplate : text;
 }
 
 function shouldExcludeMessage(content: string) {
-  // User-specified exclusions
-  if (content.includes("メッセージの送信を取り消しました")) return true;
-  if (content.includes("アナウンスしました")) return true;
-  if (content.includes("[スタンプ]")) return true;
-  if (content.includes("[写真]")) return true;
-  if (content.includes("[アルバム]")) return true;
-  if (content.includes("[ボイスメッセージ]")) return true;
-  if (content.includes("[ノート]")) return true;
-  return false;
+  return EXCLUDED_MESSAGE_MARKERS.some((marker) => content.includes(marker));
 }
 
-function shouldSkipNormalizedPhrase(normalized: string): boolean {
+function shouldSkipNormalizedPhrase(normalized: string) {
   if (STOP_WORDS.has(normalized)) return true;
-  // Single hiragana/katakana
   if (
     normalized.length === 1 &&
     /[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(normalized)
   ) {
     return true;
   }
-  // Grass (w, www)
   if (/^w+$/i.test(normalized)) return true;
-
   return false;
 }
 
-function isMeaningfulNGram(
-  phrase: string,
-  normalized: string,
-  tokenCount: number,
-  items: Array<{ text: string; pos: string }>
-) {
-  // Single words (n=1): noun only, 2+ characters to avoid common words like "気", "今"
-  // Multiple words (n>=2): MIN_PHRASE_LEN characters AND must start with a noun
-  if (tokenCount === 1) {
+function isMeaningfulCandidate(phrase: string, normalized: string, items: PhraseToken[]) {
+  if (shouldSkipNormalizedPhrase(normalized)) return false;
+  if (!canStartPhrase(items[0])) return false;
+  if (!items.some(isSpecificContentToken)) return false;
+  const lastItem = items.at(-1);
+  if (!lastItem || !canEndPhrase(lastItem)) return false;
+
+  if (items.length === 1) {
     if (phrase.length < 2) return false;
     if (!items[0].pos.startsWith("名詞")) return false;
-  } else {
-    if (phrase.length < MIN_PHRASE_LEN) return false;
-    // Require first token to be a noun to filter out verb conjugations like "思って"
-    if (!items[0].pos.startsWith("名詞")) return false;
+    if (!isMeaningfulSingleToken(items[0], false)) return false;
+  } else if (phrase.length < MIN_PHRASE_LEN) {
+    return false;
   }
-  if (shouldSkipNormalizedPhrase(normalized)) return false;
-  // Require at least some CJK signal to avoid random ASCII fragments.
-  if (!/[\p{Script=Han}\p{Script=Katakana}]/u.test(phrase)) return false;
+
+  // ひらがなだけの動詞や形容詞も対象に含める
+  return /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test(phrase);
+}
+
+function countTrailingPunctuation(text: string) {
+  return text.match(/[!！?？]+$/u)?.[0].length ?? 0;
+}
+
+function escapeSurfacePattern(text: string) {
+  return Array.from(text)
+    .map((char) => {
+      if (char === "?" || char === "？") return "[?？]";
+      if (char === "!" || char === "！") return "[!！]";
+      return char.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+    })
+    .join("");
+}
+
+function canonicalizeDisplaySurface(text: string) {
+  return text.replace(/\?/gu, "？");
+}
+
+type RepeatedUnit = {
+  unit: string;
+  prefix: string;
+  suffix: string;
+};
+
+function findRepeatedUnits(text: string) {
+  const chars = Array.from(text);
+  const repeatedUnits: RepeatedUnit[] = [];
+
+  for (let unitLength = 1; unitLength <= 2; unitLength++) {
+    for (let start = 0; start + unitLength * 2 <= chars.length; start++) {
+      const unit = chars.slice(start, start + unitLength).join("");
+      const nextUnit = chars.slice(start + unitLength, start + unitLength * 2).join("");
+      if (unit !== nextUnit) continue;
+
+      repeatedUnits.push({
+        unit,
+        prefix: chars.slice(0, start).join(""),
+        suffix: chars.slice(start + unitLength * 2).join(""),
+      });
+    }
+  }
+
+  return repeatedUnits;
+}
+
+function selectSurfaceForMessage(text: string, sourceText: string) {
+  if (text === sourceText) return canonicalizeDisplaySurface(text);
+
+  const hasTrailingPunctuation = /[!！?？]+$/u.test(text);
+  const repeatedUnits = findRepeatedUnits(text);
+  if (!hasTrailingPunctuation && repeatedUnits.length === 0) {
+    return canonicalizeDisplaySurface(text);
+  }
+
+  const normalized = normalizeKeyText(text);
+  let selected = text;
+  const consider = (candidate: string) => {
+    if (
+      normalizeKeyText(candidate) === normalized &&
+      candidate.length > selected.length
+    ) {
+      selected = candidate;
+    }
+  };
+
+  if (sourceText.includes(text)) consider(text);
+
+  const trailing = text.match(/[!！?？]+$/u);
+  if (trailing) {
+    const body = text.slice(0, -trailing[0].length);
+    const pattern = new RegExp(`${escapeSurfacePattern(body)}[!！?？]+`, "gu");
+    for (const match of sourceText.matchAll(pattern)) consider(match[0]);
+  }
+
+  for (const { unit, prefix, suffix } of repeatedUnits) {
+    const pattern = new RegExp(
+      `${escapeSurfacePattern(prefix)}(?:${escapeSurfacePattern(unit)}){2,}${escapeSurfacePattern(suffix)}`,
+      "gu"
+    );
+    for (const match of sourceText.matchAll(pattern)) consider(match[0]);
+  }
+
+  return canonicalizeDisplaySurface(selected);
+}
+
+function selectDisplayPhrase(entry: PhraseEntry) {
+  let selected = "";
+  let selectedCount = -1;
+  let selectedTrailingPunctuationCount = -1;
+  let selectedLength = -1;
+  let selectedOrder = Number.POSITIVE_INFINITY;
+
+  for (const [phrase, surface] of entry.surfaces) {
+    const trailingPunctuationCount = countTrailingPunctuation(phrase);
+    if (
+      surface.count > selectedCount ||
+      (surface.count === selectedCount &&
+        (trailingPunctuationCount > selectedTrailingPunctuationCount ||
+          (trailingPunctuationCount === selectedTrailingPunctuationCount &&
+            (phrase.length > selectedLength ||
+              (phrase.length === selectedLength && surface.firstSeen < selectedOrder)))))
+    ) {
+      selected = phrase;
+      selectedCount = surface.count;
+      selectedTrailingPunctuationCount = trailingPunctuationCount;
+      selectedLength = phrase.length;
+      selectedOrder = surface.firstSeen;
+    }
+  }
+
+  return selected;
+}
+
+function findRanges(text: string, target: string) {
+  const ranges: Array<{ start: number; end: number }> = [];
+  let offset = 0;
+
+  while (offset <= text.length - target.length) {
+    const start = text.indexOf(target, offset);
+    if (start < 0) break;
+    ranges.push({ start, end: start + target.length });
+    offset = start + 1;
+  }
+
+  return ranges;
+}
+
+function isFullyCoveredByLongerPhrase(
+  shorter: PhraseEntry,
+  longer: PhraseEntry,
+  normalizedMessages: string[]
+) {
+  if (!longer.normalized.includes(shorter.normalized)) return false;
+
+  for (const [messageIndex, shorterContentCount] of shorter.specificContentCounts) {
+    const longerContentCount = longer.specificContentCounts.get(messageIndex);
+    if (longerContentCount === undefined || longerContentCount <= shorterContentCount) {
+      return false;
+    }
+
+    const message = normalizedMessages[messageIndex];
+    const shortRanges = findRanges(message, shorter.normalized);
+    const longRanges = findRanges(message, longer.normalized);
+
+    if (
+      shortRanges.length === 0 ||
+      longRanges.length === 0 ||
+      shortRanges.some(
+        (shortRange) =>
+          !longRanges.some(
+            (longRange) =>
+              longRange.start <= shortRange.start && longRange.end >= shortRange.end
+          )
+      )
+    ) {
+      return false;
+    }
+  }
+
   return true;
 }
 
-function getTopPhrases(
-  counts: Map<
-    string,
-    {
-      phrase: string;
-      tokens: string[];
-      count: number;
-      dates: Set<string>;
-      isFromNGram: boolean;
-      ids: string[];
-    }
-  >,
-  totalDaysCount: number
+function removeRedundantNestedPhrases(
+  entries: PhraseEntry[],
+  normalizedMessages: string[]
 ) {
-  // Performance: keep limited top candidates via min-heap
-  type CountItem = {
-    phrase: string;
-    tokens: string[];
-    count: number;
-    ids: string[];
-    dates: Set<string>;
-    isFromNGram: boolean;
-    trailing?: TrailingMeta;
-  };
+  const entriesByOccurrences = new Map<string, PhraseEntry[]>();
 
-  const isWorse = (a: CountItem, b: CountItem) => {
-    if (a.count !== b.count) return a.count < b.count;
-    if (a.tokens.length !== b.tokens.length) return a.tokens.length < b.tokens.length;
-    return a.phrase.length < b.phrase.length;
-  };
-
-  const heap: CountItem[] = [];
-
-  const heapSwap = (i: number, j: number) => {
-    const tmp = heap[i];
-    heap[i] = heap[j];
-    heap[j] = tmp;
-  };
-
-  const heapUp = (idx: number) => {
-    let i = idx;
-    while (i > 0) {
-      const p = Math.floor((i - 1) / 2);
-      if (!isWorse(heap[i], heap[p])) break;
-      heapSwap(i, p);
-      i = p;
-    }
-  };
-
-  const heapDown = (idx: number) => {
-    let i = idx;
-    while (true) {
-      const l = i * 2 + 1;
-      const r = i * 2 + 2;
-      let smallest = i;
-
-      if (l < heap.length && isWorse(heap[l], heap[smallest])) smallest = l;
-      if (r < heap.length && isWorse(heap[r], heap[smallest])) smallest = r;
-      if (smallest === i) break;
-      heapSwap(i, smallest);
-      i = smallest;
-    }
-  };
-
-  for (const item of counts.values()) {
-    if (heap.length < CANDIDATE_LIMIT) {
-      heap.push(item as CountItem);
-      heapUp(heap.length - 1);
-      continue;
-    }
-
-    // Replace the worst item if the new item is better.
-    if (isWorse(heap[0], item as CountItem)) {
-      heap[0] = item as CountItem;
-      heapDown(0);
+  for (const entry of entries) {
+    const signature = [...entry.specificContentCounts.keys()].join(",");
+    const group = entriesByOccurrences.get(signature);
+    if (group) {
+      group.push(entry);
+    } else {
+      entriesByOccurrences.set(signature, [entry]);
     }
   }
 
-  const candidates = heap
-    .map((item) => {
-      if (item.trailing) {
-        item.phrase = formatTrailingPhrase(item.trailing, item.phrase);
+  const kept: PhraseEntry[] = [];
+
+  for (const group of entriesByOccurrences.values()) {
+    group.sort((a, b) => {
+      if (b.normalized.length !== a.normalized.length) {
+        return b.normalized.length - a.normalized.length;
       }
-      return item;
-    })
-    .sort((a, b) => {
-    if (b.count !== a.count) return b.count - a.count;
-    if (b.tokens.length !== a.tokens.length) return b.tokens.length - a.tokens.length;
-    return b.phrase.length - a.phrase.length;
+      return a.firstSeen - b.firstSeen;
     });
 
-  const kept: TrendRow[] = [];
-
-  for (const item of candidates) {
-    if (
-      item.isFromNGram &&
-      item.dates.size > totalDaysCount * NGRAM_MAX_DAILY_FREQUENCY_RATIO
-    ) {
-      continue;
+    const longerPhrases: PhraseEntry[] = [];
+    for (const entry of group) {
+      const isRedundant = longerPhrases.some((longer) =>
+        isFullyCoveredByLongerPhrase(entry, longer, normalizedMessages)
+      );
+      if (!isRedundant) {
+        kept.push(entry);
+        longerPhrases.push(entry);
+      }
     }
-
-    kept.push({
-      phrase: item.phrase,
-      count: item.count,
-      dayCount: item.dates.size,
-      ids: item.ids,
-    });
-
-    if (kept.length >= TOP_N) break;
   }
 
   return kept;
 }
 
+function compareRank(a: RankedEntry, b: RankedEntry) {
+  if (a.count !== b.count) return b.count - a.count;
+  if (a.maxTokenCount !== b.maxTokenCount) {
+    return b.maxTokenCount - a.maxTokenCount;
+  }
+  if (a.phrase.length !== b.phrase.length) return b.phrase.length - a.phrase.length;
+  return a.firstSeen - b.firstSeen;
+}
+
+function isBetterRank(a: RankedEntry, b: RankedEntry) {
+  return compareRank(a, b) < 0;
+}
+
+function isWorseRank(a: RankedEntry, b: RankedEntry) {
+  return compareRank(a, b) > 0;
+}
+
+function swapRankEntries(heap: RankedEntry[], left: number, right: number) {
+  const value = heap[left];
+  heap[left] = heap[right];
+  heap[right] = value;
+}
+
+function moveRankHeapUp(heap: RankedEntry[], index: number) {
+  let current = index;
+  while (current > 0) {
+    const parent = Math.floor((current - 1) / 2);
+    if (!isWorseRank(heap[current], heap[parent])) break;
+    swapRankEntries(heap, current, parent);
+    current = parent;
+  }
+}
+
+function moveRankHeapDown(heap: RankedEntry[], index: number) {
+  let current = index;
+  while (true) {
+    const left = current * 2 + 1;
+    const right = left + 1;
+    let worst = current;
+
+    if (left < heap.length && isWorseRank(heap[left], heap[worst])) worst = left;
+    if (right < heap.length && isWorseRank(heap[right], heap[worst])) worst = right;
+    if (worst === current) break;
+    swapRankEntries(heap, current, worst);
+    current = worst;
+  }
+}
+
+function addToRankHeap(heap: RankedEntry[], entry: RankedEntry, limit: number) {
+  if (heap.length < limit) {
+    heap.push(entry);
+    moveRankHeapUp(heap, heap.length - 1);
+  } else if (isBetterRank(entry, heap[0])) {
+    heap[0] = entry;
+    moveRankHeapDown(heap, 0);
+  }
+}
+
+function getTopPhrases(entries: PhraseEntry[], targetMessages: ParsedMessage[]) {
+  const generalHeap: RankedEntry[] = [];
+  const templateHeap: RankedEntry[] = [];
+
+  for (const entry of entries) {
+    const ranked: RankedEntry = {
+      key: `${entry.isExclamationTemplate ? "t" : "p"}:${entry.normalized}`,
+      phrase: selectDisplayPhrase(entry),
+      count: entry.count,
+      specificContentCounts: entry.specificContentCounts,
+      maxTokenCount: entry.maxTokenCount,
+      firstSeen: entry.firstSeen,
+      isExclamationTemplate: entry.isExclamationTemplate,
+    };
+
+    addToRankHeap(generalHeap, ranked, TOP_N);
+    if (ranked.isExclamationTemplate) {
+      addToRankHeap(templateHeap, ranked, EXCLAMATION_TEMPLATE_RESULT_COUNT);
+    }
+  }
+
+  const selected: RankedEntry[] = [];
+  const selectedKeys = new Set<string>();
+  for (const entry of templateHeap.sort(compareRank)) {
+    selected.push(entry);
+    selectedKeys.add(entry.key);
+  }
+  for (const entry of generalHeap.sort(compareRank)) {
+    if (selectedKeys.has(entry.key)) continue;
+    selected.push(entry);
+    selectedKeys.add(entry.key);
+    if (selected.length >= TOP_N) break;
+  }
+
+  return selected.sort(compareRank).map<TrendRow>((entry) => {
+    const ids: string[] = [];
+    const dates = new Set<string>();
+
+    for (const messageIndex of entry.specificContentCounts.keys()) {
+      const message = targetMessages[messageIndex];
+      if (!message) continue;
+
+      if (message.date) {
+        if (!dates.has(message.date)) ids.push(message.id);
+        dates.add(message.date);
+      } else {
+        ids.push(message.id);
+      }
+    }
+
+    return {
+      phrase: entry.phrase,
+      count: entry.count,
+      dayCount: dates.size,
+      ids,
+    };
+  });
+}
+
+/**
+ * LINE メッセージから対象年の流行フレーズを集計する
+ */
 export function analyzeBuzzwords(
   messages: ParsedMessage[],
   targetYear: number,
   tokenizer: kuromoji.Tokenizer
 ) {
   const counts = new Map<string, PhraseEntry>();
+  const targetMessages = messages.filter(
+    (message) => message.date && yearFromDate(message.date) === targetYear
+  );
+  const normalizedMessages = new Array<string>(targetMessages.length).fill("");
+  let sequence = 0;
 
   const addCount = (
     text: string,
-    tokens: string[],
-    countedKeysInMessage: Set<string>,
-    messageId: string,
-    messageDate: string | null,
-    isFromNGram: boolean = false
+    normalized: string,
+    tokenCount: number,
+    context: AddCountContext,
+    specificContentCount: number
   ) => {
-    const normalized = normalizeKeyText(text);
-
+    const { countedKeysInMessage, messageIndex, sourceText, isExclamationTemplate } =
+      context;
     if (shouldSkipNormalizedPhrase(normalized)) return;
 
-    // Unified key generation: use normalized text to group variations
-    const key = `p:${normalized}`;
-
-    // Per-message dedupe
+    const key = `${isExclamationTemplate ? "t" : "p"}:${normalized}`;
     if (countedKeysInMessage.has(key)) return;
     countedKeysInMessage.add(key);
 
-    const displayPhrase = truncateRepeatedPhrases(text);
-    const displayTrailingInfo = extractTrailingPunctuation(displayPhrase);
-    const originalTrailingInfo = extractTrailingPunctuation(text);
-    const trailingRunLength = originalTrailingInfo.length;
-    const isPureTrailing =
-      trailingRunLength > 0 && originalTrailingInfo.body.trim().length === 0;
-
+    const displayText = isExclamationTemplate
+      ? canonicalizeDisplaySurface(text)
+      : selectSurfaceForMessage(text, sourceText);
+    const surfaceOrder = sequence++;
     const existing = counts.get(key);
     if (existing) {
       existing.count += 1;
-      // Keep the longer phrase version (original, not normalized)
-      if (displayPhrase.length > existing.phrase.length) {
-        existing.phrase = displayPhrase;
+      existing.specificContentCounts.set(messageIndex, specificContentCount);
+      existing.maxTokenCount = Math.max(existing.maxTokenCount, tokenCount);
+
+      const surface = existing.surfaces.get(displayText);
+      if (surface) {
+        surface.count += 1;
+      } else {
+        existing.surfaces.set(displayText, { count: 1, firstSeen: surfaceOrder });
       }
-      existing.ids.push(messageId);
-      if (messageDate) {
-        existing.dates.add(messageDate);
-      }
-      existing.isFromNGram = existing.isFromNGram || isFromNGram;
-      const trailingMeta = ensureTrailingMeta(existing, displayTrailingInfo);
-      if (trailingMeta && trailingRunLength > 0) {
-        recordTrailingRun(trailingMeta, trailingRunLength, isPureTrailing);
-      }
-    } else {
-      const dates = new Set<string>();
-      if (messageDate) {
-        dates.add(messageDate);
-      }
-      const newEntry: PhraseEntry = {
-        phrase: displayPhrase,
-        tokens,
-        count: 1,
-        ids: [messageId],
-        dates,
-        isFromNGram,
-      };
-      const trailingMeta = ensureTrailingMeta(newEntry, displayTrailingInfo);
-      if (trailingMeta && trailingRunLength > 0) {
-        recordTrailingRun(trailingMeta, trailingRunLength, isPureTrailing);
-      }
-      counts.set(key, newEntry);
+
+      return;
     }
+
+    counts.set(key, {
+      normalized,
+      surfaces: new Map([[displayText, { count: 1, firstSeen: surfaceOrder }]]),
+      specificContentCounts: new Map([[messageIndex, specificContentCount]]),
+      count: 1,
+      maxTokenCount: tokenCount,
+      firstSeen: surfaceOrder,
+      isExclamationTemplate,
+    });
   };
 
-  // 総日数を計算
-  const uniqueDates = new Set(messages.map((m) => m.date).filter((d) => d));
-  const totalDaysCount = uniqueDates.size;
+  for (const [messageIndex, message] of targetMessages.entries()) {
+    if (shouldExcludeMessage(message.content)) continue;
 
-  for (const msg of messages) {
-    const year = msg.date ? yearFromDate(msg.date) : null;
-    if (year !== targetYear) continue;
-
-    if (shouldExcludeMessage(msg.content)) continue;
-
-    const cleaned = cleanMessageContent(msg.content);
+    const cleaned = cleanMessageContent(message.content);
     if (!cleaned) continue;
 
     const countedKeysInMessage = new Set<string>();
-
-    const normalizedWhole = normalizeKeyText(cleaned);
-
-    const endsWithExclamation = /[!！]$/u.test(normalizedWhole);
-
-    // 1. Short message OR Emoji/Symbol spam
-    // If message is short (≤10 chars) OR contains many emojis/symbols/punctuation,
-    // count the whole message as a phrase.
-    if (
-      cleaned.length <= SHORT_MESSAGE_MAX_LEN ||
-      countEmojiOrSymbolChars(normalizedWhole) >= EMOJI_OR_SYMBOL_MIN_COUNT
-    ) {
-      addCount(cleaned, [cleaned], countedKeysInMessage, msg.id, msg.date || null, false);
+    if (/[!！]$/u.test(cleaned)) {
+      const template = collapseRepeatedExclamationTemplate(cleaned);
+      const normalizedTemplate = normalizeKeyText(template);
+      normalizedMessages[messageIndex] = normalizedTemplate;
+      const context: AddCountContext = {
+        countedKeysInMessage,
+        messageIndex,
+        sourceText: template,
+        isExclamationTemplate: true,
+      };
+      addCount(template, normalizedTemplate, 1, context, 0);
       continue;
     }
 
-    // Treat exclamatory sentences as a single phrase, similar to short/full-count messages.
-    if (endsWithExclamation) {
-      addCount(cleaned, [cleaned], countedKeysInMessage, msg.id, msg.date || null, false);
-      continue;
+    const normalizedCleaned = normalizeKeyText(cleaned);
+    normalizedMessages[messageIndex] = normalizedCleaned;
+
+    const phraseItems = tokenizer.tokenize(cleaned).map(toPhraseToken);
+    const expressiveSymbolCount = countExpressiveSymbols(cleaned);
+    const isMeaningfulWhole = isMeaningfulWholeMessage(normalizedCleaned, phraseItems);
+    const specificContentCount = countSpecificContentTokens(phraseItems);
+    const context: AddCountContext = {
+      countedKeysInMessage,
+      messageIndex,
+      sourceText: cleaned,
+      isExclamationTemplate: false,
+    };
+    const shouldCountWholeMessage =
+      expressiveSymbolCount >= EXPRESSIVE_SYMBOL_MIN_COUNT ||
+      (cleaned.length <= SHORT_MESSAGE_MAX_LEN &&
+        (isMeaningfulWhole || expressiveSymbolCount > 0)) ||
+      (cleaned.length <= FULL_COUNT_MAX_LEN_NO_CONJUNCTION &&
+        !hasConjunctionOrParticle(phraseItems) &&
+        isMeaningfulWhole);
+
+    if (shouldCountWholeMessage) {
+      addCount(cleaned, normalizedCleaned, 1, context, specificContentCount);
     }
 
-    // Use kuromoji for morphological analysis (with POS tagging)
-    const tokens = tokenizer.tokenize(cleaned);
+    const segments: PhraseToken[][] = [];
+    let currentSegment: PhraseToken[] = [];
 
-    // 2. Short-ish message with no conjunctions
-    // If there's no connective signal (conjunction/particle/auxverb/symbol),
-    // treat short-ish messages as a single phrase.
-    if (
-      cleaned.length <= FULL_COUNT_MAX_LEN_NO_CONJUNCTION &&
-      !hasConjunctionOrParticle(tokens)
-    ) {
-      addCount(cleaned, [cleaned], countedKeysInMessage, msg.id, msg.date || null, false);
-      continue;
-    }
-
-    // 3. N-gram extraction
-    const segments: Array<{ text: string; pos: string }[]> = [];
-    let current: { text: string; pos: string }[] = [];
-
-    for (const token of tokens) {
-      if (!shouldBuildPhraseWith(token)) {
-        if (current.length > 0) segments.push(current);
-        current = [];
+    for (const token of phraseItems) {
+      if (!isPhraseToken(token)) {
+        if (currentSegment.length > 0) segments.push(currentSegment);
+        currentSegment = [];
         continue;
       }
-      current.push({ text: token.surface_form, pos: token.pos });
+      currentSegment.push(token);
     }
-    if (current.length > 0) segments.push(current);
+    if (currentSegment.length > 0) segments.push(currentSegment);
 
     for (const segment of segments) {
-      const maxN = Math.min(MAX_NGRAM, segment.length);
+      for (let start = 0; start < segment.length; start++) {
+        if (!canStartPhrase(segment[start])) continue;
 
-      // Avoid extracting multiple overlapping phrases from the same region.
-      // Generate candidates, then greedily pick non-overlapping ones.
-      type SegmentCandidate = {
-        start: number;
-        end: number;
-        phrase: string;
-        tokens: string[];
-        isNounOnly: boolean;
-      };
+        let phrase = "";
+        const endLimit = Math.min(segment.length, start + MAX_NGRAM);
 
-      const candidates: SegmentCandidate[] = [];
-
-      for (let i = 0; i < segment.length; i++) {
-        for (let n = 1; n <= maxN && i + n <= segment.length; n++) {
-          const phraseItems = segment.slice(i, i + n);
-          const phraseTokens = phraseItems.map((p) => p.text);
-          const phrase = phraseTokens.join("");
-          const normalizedPhrase = normalizeKeyText(phrase);
-
-          if (!isMeaningfulNGram(phrase, normalizedPhrase, n, phraseItems)) continue;
-
-          candidates.push({
-            start: i,
-            end: i + n,
-            phrase,
-            tokens: phraseTokens,
-            isNounOnly: phraseItems.every((p) => p.pos.startsWith("名詞")),
-          });
-        }
-      }
-
-      candidates.sort((a, b) => {
-        // Prefer longer token spans to reduce sub-phrase duplicates.
-        if (b.tokens.length !== a.tokens.length) return b.tokens.length - a.tokens.length;
-        // Then prefer longer surface length.
-        if (b.phrase.length !== a.phrase.length) return b.phrase.length - a.phrase.length;
-        // Finally prefer noun-only phrases if lengths are equal.
-        return a.isNounOnly === b.isNounOnly ? 0 : a.isNounOnly ? -1 : 1;
-      });
-
-      const used = new Array<boolean>(segment.length).fill(false);
-
-      for (const cand of candidates) {
-        let overlaps = false;
-        for (let k = cand.start; k < cand.end; k++) {
-          if (used[k]) {
-            overlaps = true;
-            break;
+        for (let end = start; end < endLimit; end++) {
+          phrase += segment[end].text;
+          const items = segment.slice(start, end + 1);
+          if (
+            isExpressivePhraseToken(segment[end]) &&
+            segment[end + 1] !== undefined &&
+            isExpressivePhraseToken(segment[end + 1])
+          ) {
+            continue;
           }
+          const normalized = normalizeKeyText(phrase);
+          if (!isMeaningfulCandidate(phrase, normalized, items)) continue;
+
+          addCount(
+            phrase,
+            normalized,
+            end - start + 1,
+            context,
+            countSpecificContentTokens(items)
+          );
         }
-        if (overlaps) continue;
-
-        addCount(
-          cand.phrase,
-          cand.tokens,
-          countedKeysInMessage,
-          msg.id,
-          msg.date || null,
-          true
-        );
-
-        for (let k = cand.start; k < cand.end; k++) used[k] = true;
       }
     }
   }
 
-  return getTopPhrases(counts, totalDaysCount);
+  const nonRedundantEntries = removeRedundantNestedPhrases(
+    [...counts.values()],
+    normalizedMessages
+  );
+  return getTopPhrases(nonRedundantEntries, targetMessages);
 }

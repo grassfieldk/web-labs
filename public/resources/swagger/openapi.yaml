@@ -10,7 +10,7 @@ paths:
       description: https://hololist.net/ のデータをフェッチします。
       parameters:
         - in: query
-          name: keyword
+          name: s
           schema:
             type: string
           required: false

@@ -2,15 +2,14 @@ declare module "kuromoji" {
   export interface Token {
     surface_form: string;
     pos: string;
-    pos1?: string;
-    pos2?: string;
-    pos3?: string;
-    pos4?: string;
-    pos5?: string;
-    pos6?: string;
-    base_form?: string;
-    reading_form?: string;
-    phonetic_form?: string;
+    pos_detail_1?: string;
+    pos_detail_2?: string;
+    pos_detail_3?: string;
+    conjugated_type?: string;
+    conjugated_form?: string;
+    basic_form?: string;
+    reading?: string;
+    pronunciation?: string;
   }
 
   export interface Tokenizer {

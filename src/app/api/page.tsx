@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 
 interface SwaggerUIWindow extends Window {
   SwaggerUIBundle?: {
@@ -22,9 +22,9 @@ const appendStylesheet = (href: string) => {
 };
 
 const loadScript = (src: string) => {
-  const existing = document.querySelector(`script[src="${src}"]`) as
-    | HTMLScriptElement
-    | null;
+  const existing = document.querySelector(
+    `script[src="${src}"]`
+  ) as HTMLScriptElement | null;
 
   if (existing?.dataset.loaded === "true") {
     return Promise.resolve();
@@ -50,8 +50,6 @@ const loadScript = (src: string) => {
 };
 
 export default function ApiDocsPage() {
-  const swaggerRef = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
     const loadSwaggerUI = async () => {
       appendStylesheet("/resources/swagger/swagger-ui.css");
@@ -80,5 +78,5 @@ export default function ApiDocsPage() {
     });
   }, []);
 
-  return <div id="swagger-ui" ref={swaggerRef} />;
+  return <div id="swagger-ui" />;
 }

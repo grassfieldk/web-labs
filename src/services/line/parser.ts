@@ -27,20 +27,22 @@ function generateUuid() {
   return `msg-${Math.random().toString(36).slice(2)}-${Date.now().toString(36)}`;
 }
 
+export type LineHistory = {
+  year: number;
+  month: number; // 1-based
+  messages: LineMessage[];
+};
+
 export type ParseResult = {
   partnerName: string;
-  history: Array<{
-    year: number;
-    month: number; // 1-based
-    messages: LineMessage[];
-  }>;
+  history: LineHistory[];
 };
 
 /**
  * Normalize newlines in text (CRLF and CR to LF)
  */
 function normalizeNewlines(text: string): string {
-  return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  return text.replace(/\r\n?/g, "\n");
 }
 
 /**
@@ -75,27 +77,34 @@ export const parseLineChatHistory = (text: string): ParseResult => {
   const partnerName = m ? m[1].trim() : "";
 
   // Group messages by year and month
-  const historyMap = new Map<
-    string,
-    { year: number; month: number; messages: LineMessage[] }
-  >();
+  const historyMap = new Map<string, LineHistory>();
   let currentDate = "";
+  let currentYearMonth: { year: number; month: number } | null = null;
+  let currentGroup: LineHistory | null = null;
   let lastMessage: LineMessage | null = null;
 
   for (const rawLine of lines) {
     const line = rawLine.trimEnd();
-    if (!line.trim()) continue;
+    const trimmedLine = line.trim();
+    if (!trimmedLine) continue;
 
     // Date line (e.g., 2023/01/01)
-    if (/^\d{4}\/\d{2}\/\d{2}/.test(line.trim())) {
-      currentDate = line.trim().slice(0, 10);
+    if (/^\d{4}\/\d{2}\/\d{2}/.test(trimmedLine)) {
+      currentDate = trimmedLine.slice(0, 10);
+      currentYearMonth = yearMonthFromDate(currentDate);
+      currentGroup = null;
+      if (currentYearMonth) {
+        const ym = currentYearMonth;
+        const key = `${ym.year}-${String(ym.month).padStart(2, "0")}`;
+        currentGroup = historyMap.get(key) ?? null;
+      }
       lastMessage = null;
       continue;
     }
 
     // Message line (Time <tab> Sender <tab> Content)
     const parts = line.split("\t");
-    if (parts.length >= 3 && currentDate) {
+    if (parts.length >= 3 && currentDate && currentYearMonth) {
       const [time, sender, ...rest] = parts;
       const msg: LineMessage = {
         id: generateUuid(),
@@ -105,18 +114,13 @@ export const parseLineChatHistory = (text: string): ParseResult => {
         content: rest.join("\t"),
       };
 
-      // Group by year/month
-      const ym = yearMonthFromDate(currentDate);
-      if (ym) {
-        const key = `${ym.year}-${String(ym.month).padStart(2, "0")}`;
-        if (!historyMap.has(key)) {
-          historyMap.set(key, { year: ym.year, month: ym.month, messages: [] });
-        }
-        const group = historyMap.get(key);
-        if (group) {
-          group.messages.push(msg);
-        }
+      if (!currentGroup) {
+        const { year, month } = currentYearMonth;
+        const key = `${year}-${String(month).padStart(2, "0")}`;
+        currentGroup = { year, month, messages: [] };
+        historyMap.set(key, currentGroup);
       }
+      currentGroup.messages.push(msg);
 
       lastMessage = msg;
       continue;

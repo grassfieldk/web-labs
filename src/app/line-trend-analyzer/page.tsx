@@ -17,8 +17,18 @@ import { MdError } from "react-icons/md";
 import PageBuilder from "@/components/layout/PageBuilder";
 import { Caption } from "@/components/ui/Basics";
 import { LineChatViewer } from "@/components/ui/line";
-import { type LineMessage, parseLineChatHistory } from "@/services/line/parser";
+import {
+  type LineHistory,
+  type LineMessage,
+  parseLineChatHistory,
+} from "@/services/line/parser";
 import { analyzeBuzzwords, type TrendRow } from "@/services/line/trendAnalyzer";
+
+function messageTimestamp(message: LineMessage) {
+  if (!message.date || !message.time) return 0;
+  const timestamp = new Date(`${message.date} ${message.time}`).getTime();
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+}
 
 export default function TrendAnalyzerPage() {
   const [tokenizer, setTokenizer] = useState<kuromoji.Tokenizer | null>(null);
@@ -26,9 +36,7 @@ export default function TrendAnalyzerPage() {
 
   const [file, setFile] = useState<File | null>(null);
   const [isParsing, setIsParsing] = useState(false);
-  const [history, setHistory] = useState<
-    Array<{ year: number; month: number; messages: LineMessage[] }>
-  >([]);
+  const [history, setHistory] = useState<LineHistory[]>([]);
   const [targetYear, setTargetYear] = useState<number>(() => new Date().getFullYear());
   const [error, setError] = useState<string>("");
 
@@ -71,14 +79,7 @@ export default function TrendAnalyzerPage() {
     setSelectedRow(null);
     setSelectedDate(null);
     setViewerMessages([]);
-    if (!file) {
-      setHistory([]);
-      setPartnerName("");
-      return;
-    }
-
-    // Selecting a file does not start parsing automatically.
-    // Reset current results so the user clearly sees they need to start.
+    setPartnerName("");
     setHistory([]);
   };
 
@@ -124,34 +125,40 @@ export default function TrendAnalyzerPage() {
   };
 
   const allMessages = useMemo(() => history.flatMap((h) => h.messages), [history]);
+  const yearMessages = useMemo(
+    () => history.filter((h) => h.year === targetYear).flatMap((h) => h.messages),
+    [history, targetYear]
+  );
+  const messagesById = useMemo(
+    () => new Map(allMessages.map((message) => [message.id, message])),
+    [allMessages]
+  );
+  const sortedMessages = useMemo(
+    () =>
+      allMessages
+        .map((message, index) => ({
+          message,
+          index,
+          timestamp: messageTimestamp(message),
+        }))
+        .sort((a, b) => a.timestamp - b.timestamp || a.index - b.index)
+        .map(({ message }) => message),
+    [allMessages]
+  );
 
   const resultRows = useMemo(() => {
-    if (history.length === 0 || !tokenizer) return [];
-    const yearMessages = history
-      .filter((h) => h.year === targetYear)
-      .flatMap((h) => h.messages);
     if (yearMessages.length === 0) return [];
-    return analyzeBuzzwords(allMessages, targetYear, tokenizer);
-  }, [history, targetYear, tokenizer, allMessages]);
+    if (!tokenizer) return [];
+    return analyzeBuzzwords(yearMessages, targetYear, tokenizer);
+  }, [targetYear, tokenizer, yearMessages]);
 
-  const targetYearMessageCount = useMemo(() => {
-    return history
-      .filter((h) => h.year === targetYear)
-      .reduce((sum, h) => sum + h.messages.length, 0);
-  }, [history, targetYear]);
+  const targetYearMessageCount = yearMessages.length;
 
   useEffect(() => {
-    if (selectedDate && selectedRow && allMessages.length > 0) {
-      const sortedMessages = [...allMessages].sort((a, b) => {
-        const aDateTime =
-          a.date && a.time ? new Date(`${a.date} ${a.time}`).getTime() : 0;
-        const bDateTime =
-          b.date && b.time ? new Date(`${b.date} ${b.time}`).getTime() : 0;
-        return aDateTime - bDateTime;
-      });
+    if (selectedDate && selectedRow) {
       // Find the first id of the phrase on the selected date
       const firstId = selectedRow.ids.find((id) => {
-        const msg = allMessages.find((m) => m.id === id);
+        const msg = messagesById.get(id);
         return msg?.date === selectedDate;
       });
       if (firstId) {
@@ -163,7 +170,7 @@ export default function TrendAnalyzerPage() {
         }
       }
     }
-  }, [selectedDate, selectedRow, allMessages]);
+  }, [selectedDate, selectedRow, messagesById, sortedMessages]);
 
   return (
     <PageBuilder title="LINE 流行語大賞" description="今年流行ったフレーズは？">
@@ -209,6 +216,9 @@ export default function TrendAnalyzerPage() {
                 const y = Number(v);
                 if (!Number.isNaN(y)) {
                   setTargetYear(y);
+                  setSelectedRow(null);
+                  setSelectedDate(null);
+                  setViewerMessages([]);
                 }
               }}
               w={100}
@@ -232,7 +242,7 @@ export default function TrendAnalyzerPage() {
             <Table.Tbody>
               {resultRows.map((row, idx) => (
                 <Table.Tr
-                  key={row.phrase}
+                  key={`${idx}:${row.phrase}`}
                   onClick={() => {
                     setSelectedRow(row);
                     setSelectedDate(null);
@@ -258,7 +268,7 @@ export default function TrendAnalyzerPage() {
           setSelectedDate(null);
           setViewerMessages([]);
         }}
-        title={selectedDate ? "メッセージ履歴" : "メッセージ履歴"}
+        title="メッセージ履歴"
         size="xl"
       >
         <Stack>
@@ -268,7 +278,7 @@ export default function TrendAnalyzerPage() {
                 ...new Set(
                   selectedRow.ids
                     .map((id) => {
-                      const msg = allMessages.find((m) => m.id === id);
+                      const msg = messagesById.get(id);
                       return msg?.date || "";
                     })
                     .filter((d) => d)
